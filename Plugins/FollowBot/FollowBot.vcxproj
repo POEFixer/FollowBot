@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{19E2E32F-CB89-4759-BE06-57D083F571DD}</ProjectGuid>
+    <RootNamespace>FollowBot</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)x64\Release\Plugins\FollowBot\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <TargetName>FollowBot</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)x64\Debug\Plugins\FollowBot\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <TargetName>FollowBot</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>PLUGIN_EXPORTS;NDEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>..\..\POEFixer;..\..\POEFixer\imgui;lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalDependencies>user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>PLUGIN_EXPORTS;_DEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>..\..\POEFixer;..\..\POEFixer\imgui;lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\FollowBot.cpp" />
+    <ClCompile Include="src\brain\Brain.cpp" />
+    <ClCompile Include="src\brain\FollowTask.cpp" />
+    <ClCompile Include="src\brain\Gates.cpp" />
+    <ClCompile Include="src\combat\SkillEngine.cpp" />
+    <ClCompile Include="src\combat\Targeting.cpp" />
+    <ClCompile Include="src\common\BotLog.cpp" />
+    <ClCompile Include="src\config\Profiles.cpp" />
+    <ClCompile Include="src\config\SettingsIo.cpp" />
+    <ClCompile Include="src\death\DeathTask.cpp" />
+    <ClCompile Include="src\input\Actuator.cpp" />
+    <ClCompile Include="src\input\InputHook.cpp" />
+    <ClCompile Include="src\input\Win32Input.cpp" />
+    <ClCompile Include="src\loot\LootCategories.cpp" />
+    <ClCompile Include="src\loot\LootFilter.cpp" />
+    <ClCompile Include="src\loot\LootScanner.cpp" />
+    <ClCompile Include="src\loot\PickupTask.cpp" />
+    <ClCompile Include="src\move\Mover.cpp" />
+    <ClCompile Include="src\move\StuckRecovery.cpp" />
+    <ClCompile Include="src\nav\AStar.cpp" />
+    <ClCompile Include="src\nav\NavGrid.cpp" />
+    <ClCompile Include="src\nav\PathPlanner.cpp" />
+    <ClCompile Include="src\stash\PortalTrip.cpp" />
+    <ClCompile Include="src\stash\StashPlanner.cpp" />
+    <ClCompile Include="src\stash\StashTask.cpp" />
+    <ClCompile Include="src\travel\TravelTask.cpp" />
+    <ClCompile Include="src\travel\WorldClick.cpp" />
+    <ClCompile Include="src\ui\DebugTools.cpp" />
+    <ClCompile Include="src\ui\Overlay.cpp" />
+    <ClCompile Include="src\ui\SettingsUi.cpp" />
+    <ClCompile Include="src\ui\UiDebug.cpp" />
+    <ClCompile Include="src\ui\UiFollow.cpp" />
+    <ClCompile Include="src\ui\UiLoot.cpp" />
+    <ClCompile Include="src\ui\UiSafety.cpp" />
+    <ClCompile Include="src\ui\UiSkills.cpp" />
+    <ClCompile Include="src\ui\UiStash.cpp" />
+    <ClCompile Include="src\ui\UiTravel.cpp" />
+    <ClCompile Include="src\world\Interactables.cpp" />
+    <ClCompile Include="src\world\InventoryModel.cpp" />
+    <ClCompile Include="src\world\LeaderTracker.cpp" />
+    <ClCompile Include="src\world\WorldBuilder.cpp" />
+    <ClCompile Include="..\..\POEFixer\imgui\imgui.cpp" />
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_tables.cpp" />
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_widgets.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\FollowBotPlugin.h" />
+    <ClInclude Include="src\combat\SkillConditions.h" />
+    <ClInclude Include="src\death\DeathLogic.h" />
+    <ClInclude Include="src\loot\LootHost.h" />
+    <ClInclude Include="src\loot\LootScanCore.h" />
+    <ClInclude Include="src\stash\StashDiag.h" />
+    <ClInclude Include="src\stash\StashLogic.h" />
+    <ClInclude Include="src\travel\TravelLogic.h" />
+    <ClInclude Include="src\brain\BotView.h" />
+    <ClInclude Include="src\brain\Brain.h" />
+    <ClInclude Include="src\brain\FollowTask.h" />
+    <ClInclude Include="src\brain\Gates.h" />
+    <ClInclude Include="src\brain\Task.h" />
+    <ClInclude Include="src\combat\SkillEngine.h" />
+    <ClInclude Include="src\combat\SkillSettings.h" />
+    <ClInclude Include="src\combat\Targeting.h" />
+    <ClInclude Include="src\common\BotLog.h" />
+    <ClInclude Include="src\common\Clock.h" />
+    <ClInclude Include="src\common\FileUtil.h" />
+    <ClInclude Include="src\common\Geometry.h" />
+    <ClInclude Include="src\common\JsonUtil.h" />
+    <ClInclude Include="src\common\Random.h" />
+    <ClInclude Include="src\common\Strings.h" />
+    <ClInclude Include="src\config\Profiles.h" />
+    <ClInclude Include="src\config\Settings.h" />
+    <ClInclude Include="src\death\DeathSettings.h" />
+    <ClInclude Include="src\death\DeathTask.h" />
+    <ClInclude Include="src\input\Actuator.h" />
+    <ClInclude Include="src\input\Coordination.h" />
+    <ClInclude Include="src\input\HumanMouse.h" />
+    <ClInclude Include="src\input\InputHook.h" />
+    <ClInclude Include="src\input\Win32Input.h" />
+    <ClInclude Include="src\loot\LootCategories.h" />
+    <ClInclude Include="src\loot\LootFilter.h" />
+    <ClInclude Include="src\loot\LootScanner.h" />
+    <ClInclude Include="src\loot\LootSettings.h" />
+    <ClInclude Include="src\loot\PickupTask.h" />
+    <ClInclude Include="src\move\Mover.h" />
+    <ClInclude Include="src\move\StuckRecovery.h" />
+    <ClInclude Include="src\nav\AStar.h" />
+    <ClInclude Include="src\nav\NavGrid.h" />
+    <ClInclude Include="src\nav\PathPlanner.h" />
+    <ClInclude Include="src\stash\PortalTrip.h" />
+    <ClInclude Include="src\stash\StashPlanner.h" />
+    <ClInclude Include="src\stash\StashSettings.h" />
+    <ClInclude Include="src\stash\StashTask.h" />
+    <ClInclude Include="src\travel\TravelSettings.h" />
+    <ClInclude Include="src\travel\TravelTask.h" />
+    <ClInclude Include="src\travel\WorldClick.h" />
+    <ClInclude Include="src\ui\Tabs.h" />
+    <ClInclude Include="src\world\Interactables.h" />
+    <ClInclude Include="src\world\InventoryModel.h" />
+    <ClInclude Include="src\world\LeaderTracker.h" />
+    <ClInclude Include="src\world\Projection.h" />
+    <ClInclude Include="src\world\World.h" />
+    <ClInclude Include="src\world\WorldBuilder.h" />
+    <ClInclude Include="lib\nlohmann\json.hpp" />
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginAbi.h" />
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginSDK.h" />
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginUi.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+    <None Include="CHANGELOG.md" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

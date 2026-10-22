@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{C4907D11-C886-4654-8FB5-E9757309E8AD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib">
+      <UniqueIdentifier>{E88B58CE-1F52-4F79-85C9-49AFD7E2F3FD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sdk">
+      <UniqueIdentifier>{4CF9764A-CC75-41FA-A8B4-09D210F1A105}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="docs">
+      <UniqueIdentifier>{BBDDCEB6-C537-4697-82CB-E826B04EBACC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{101463A6-5019-4837-8D2C-7D25B2227545}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\brain">
+      <UniqueIdentifier>{5A509FAB-01B0-4FF3-BE6B-19A23166EAD5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\combat">
+      <UniqueIdentifier>{781D4A85-74E0-4F8E-90E3-99BE80A2F73C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\common">
+      <UniqueIdentifier>{50A42B86-E520-4DEC-8EA6-FDD8298D6529}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\config">
+      <UniqueIdentifier>{606427F2-2FF3-4204-BD09-1D606E480EB1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\death">
+      <UniqueIdentifier>{BD8B0CF6-5E29-4033-8876-9C292D8E9ED4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\input">
+      <UniqueIdentifier>{1F3E45E0-94FE-4281-B36C-668F77EA8C60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\loot">
+      <UniqueIdentifier>{27616CD3-6C82-466A-9A62-841D0E08FF8A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\move">
+      <UniqueIdentifier>{D8158614-2462-4BCB-904C-422E06C8E125}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\nav">
+      <UniqueIdentifier>{39AD67F5-BD98-4A31-8A03-CED4BCFF2C01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\stash">
+      <UniqueIdentifier>{99E4B319-0C5D-44BA-A02C-A11BFACD9ADD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\travel">
+      <UniqueIdentifier>{B94FEF49-D02E-4548-91B1-8721310F3160}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ui">
+      <UniqueIdentifier>{2A6C1E4D-7B3F-4C58-9E21-6D0F8A4B3C71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\world">
+      <UniqueIdentifier>{8E5D2F10-4A6B-4C93-B7E8-1F2D3C4B5A69}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\FollowBot.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\brain\Brain.cpp">
+      <Filter>src\brain</Filter>
+    </ClCompile>
+    <ClCompile Include="src\brain\FollowTask.cpp">
+      <Filter>src\brain</Filter>
+    </ClCompile>
+    <ClCompile Include="src\brain\Gates.cpp">
+      <Filter>src\brain</Filter>
+    </ClCompile>
+    <ClCompile Include="src\combat\SkillEngine.cpp">
+      <Filter>src\combat</Filter>
+    </ClCompile>
+    <ClCompile Include="src\combat\Targeting.cpp">
+      <Filter>src\combat</Filter>
+    </ClCompile>
+    <ClCompile Include="src\common\BotLog.cpp">
+      <Filter>src\common</Filter>
+    </ClCompile>
+    <ClCompile Include="src\config\Profiles.cpp">
+      <Filter>src\config</Filter>
+    </ClCompile>
+    <ClCompile Include="src\config\SettingsIo.cpp">
+      <Filter>src\config</Filter>
+    </ClCompile>
+    <ClCompile Include="src\death\DeathTask.cpp">
+      <Filter>src\death</Filter>
+    </ClCompile>
+    <ClCompile Include="src\input\Actuator.cpp">
+      <Filter>src\input</Filter>
+    </ClCompile>
+    <ClCompile Include="src\input\InputHook.cpp">
+      <Filter>src\input</Filter>
+    </ClCompile>
+    <ClCompile Include="src\input\Win32Input.cpp">
+      <Filter>src\input</Filter>
+    </ClCompile>
+    <ClCompile Include="src\loot\LootCategories.cpp">
+      <Filter>src\loot</Filter>
+    </ClCompile>
+    <ClCompile Include="src\loot\LootFilter.cpp">
+      <Filter>src\loot</Filter>
+    </ClCompile>
+    <ClCompile Include="src\loot\LootScanner.cpp">
+      <Filter>src\loot</Filter>
+    </ClCompile>
+    <ClCompile Include="src\loot\PickupTask.cpp">
+      <Filter>src\loot</Filter>
+    </ClCompile>
+    <ClCompile Include="src\move\Mover.cpp">
+      <Filter>src\move</Filter>
+    </ClCompile>
+    <ClCompile Include="src\move\StuckRecovery.cpp">
+      <Filter>src\move</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\AStar.cpp">
+      <Filter>src\nav</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\NavGrid.cpp">
+      <Filter>src\nav</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nav\PathPlanner.cpp">
+      <Filter>src\nav</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stash\PortalTrip.cpp">
+      <Filter>src\stash</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stash\StashPlanner.cpp">
+      <Filter>src\stash</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stash\StashTask.cpp">
+      <Filter>src\stash</Filter>
+    </ClCompile>
+    <ClCompile Include="src\travel\TravelTask.cpp">
+      <Filter>src\travel</Filter>
+    </ClCompile>
+    <ClCompile Include="src\travel\WorldClick.cpp">
+      <Filter>src\travel</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\DebugTools.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\Overlay.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\SettingsUi.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiDebug.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiFollow.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiLoot.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiSafety.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiSkills.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiStash.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\UiTravel.cpp">
+      <Filter>src\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\Interactables.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\InventoryModel.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\LeaderTracker.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="src\world\WorldBuilder.cpp">
+      <Filter>src\world</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\POEFixer\imgui\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_tables.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\POEFixer\imgui\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\combat\SkillConditions.h">
+      <Filter>src\combat</Filter>
+    </ClInclude>
+    <ClInclude Include="src\death\DeathLogic.h">
+      <Filter>src\death</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootHost.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootScanCore.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\StashDiag.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\StashLogic.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\travel\TravelLogic.h">
+      <Filter>src\travel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FollowBotPlugin.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\brain\BotView.h">
+      <Filter>src\brain</Filter>
+    </ClInclude>
+    <ClInclude Include="src\brain\Brain.h">
+      <Filter>src\brain</Filter>
+    </ClInclude>
+    <ClInclude Include="src\brain\FollowTask.h">
+      <Filter>src\brain</Filter>
+    </ClInclude>
+    <ClInclude Include="src\brain\Gates.h">
+      <Filter>src\brain</Filter>
+    </ClInclude>
+    <ClInclude Include="src\brain\Task.h">
+      <Filter>src\brain</Filter>
+    </ClInclude>
+    <ClInclude Include="src\combat\SkillEngine.h">
+      <Filter>src\combat</Filter>
+    </ClInclude>
+    <ClInclude Include="src\combat\SkillSettings.h">
+      <Filter>src\combat</Filter>
+    </ClInclude>
+    <ClInclude Include="src\combat\Targeting.h">
+      <Filter>src\combat</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\BotLog.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\Clock.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\FileUtil.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\Geometry.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\JsonUtil.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\Random.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\Strings.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\config\Profiles.h">
+      <Filter>src\config</Filter>
+    </ClInclude>
+    <ClInclude Include="src\config\Settings.h">
+      <Filter>src\config</Filter>
+    </ClInclude>
+    <ClInclude Include="src\death\DeathSettings.h">
+      <Filter>src\death</Filter>
+    </ClInclude>
+    <ClInclude Include="src\death\DeathTask.h">
+      <Filter>src\death</Filter>
+    </ClInclude>
+    <ClInclude Include="src\input\Actuator.h">
+      <Filter>src\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\input\Coordination.h">
+      <Filter>src\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\input\HumanMouse.h">
+      <Filter>src\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\input\InputHook.h">
+      <Filter>src\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\input\Win32Input.h">
+      <Filter>src\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootCategories.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootFilter.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootScanner.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\LootSettings.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\loot\PickupTask.h">
+      <Filter>src\loot</Filter>
+    </ClInclude>
+    <ClInclude Include="src\move\Mover.h">
+      <Filter>src\move</Filter>
+    </ClInclude>
+    <ClInclude Include="src\move\StuckRecovery.h">
+      <Filter>src\move</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nav\AStar.h">
+      <Filter>src\nav</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nav\NavGrid.h">
+      <Filter>src\nav</Filter>
+    </ClInclude>
+    <ClInclude Include="src\nav\PathPlanner.h">
+      <Filter>src\nav</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\PortalTrip.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\StashPlanner.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\StashSettings.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stash\StashTask.h">
+      <Filter>src\stash</Filter>
+    </ClInclude>
+    <ClInclude Include="src\travel\TravelSettings.h">
+      <Filter>src\travel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\travel\TravelTask.h">
+      <Filter>src\travel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\travel\WorldClick.h">
+      <Filter>src\travel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\Tabs.h">
+      <Filter>src\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\Interactables.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\InventoryModel.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\LeaderTracker.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\Projection.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\World.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="src\world\WorldBuilder.h">
+      <Filter>src\world</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\nlohmann\json.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginAbi.h">
+      <Filter>sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginSDK.h">
+      <Filter>sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\POEFixer\plugin_sdk\PluginUi.h">
+      <Filter>sdk</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="CHANGELOG.md">
+      <Filter>docs</Filter>
+    </None>
+  </ItemGroup>
+</Project>
