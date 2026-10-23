@@ -500,6 +500,6 @@ extern "C" PLUGIN_API void DestroyPlugin(PluginSDK::Plugin* p) { delete p; }
 POEFIXER_PLUGIN_INFO(
     "FollowBot",
     "Follow Bot",
-    "1.0.0",
+    "1.0.1",
     "POEFixer",
     "A follower that keeps up with your leader through areas and portals, fights, loots and stashes by your rules, and recovers from getting stuck.")

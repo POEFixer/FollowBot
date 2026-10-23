@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Works with the separate menu window (POEFixer 366): the host hands the plugin the right drawing context for its settings tab and for its overlay.
+
 ## 1.0.0
 
 - First version: a follower character that keeps up with a leader you name, walking smart paths around walls instead of straight into them.

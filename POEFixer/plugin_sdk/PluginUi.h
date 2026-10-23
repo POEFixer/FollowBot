@@ -5,8 +5,9 @@
 // is passed in by the caller (plugins are not localized). Colours are taken from
 // the LIVE ImGui style, which the host fills from the user's theme, so a plugin
 // follows every theme without naming one. Set ImGui's context from
-// ctx()->ImGuiContext before drawing (once in OnEnable is enough: your DLL keeps
-// it in its own ImGui copy).
+// ctx()->ImGuiContext at every entry point that draws (OnEnable, DrawUI,
+// DrawSettings): with "Separate menu window" DrawUI and DrawSettings run in two
+// different contexts. The host (366+) also binds it before each call.
 //
 // ---------------------------------------------------------------------------
 // How a DrawSettings() should be laid out
