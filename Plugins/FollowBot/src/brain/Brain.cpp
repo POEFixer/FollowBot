@@ -50,7 +50,7 @@ void Brain::OnStop(BotContext& ctx) {
 
 void Brain::AbortExclusive(BotContext& ctx) {
     if (!m_exclusive) return;
-    ctx.log.Add(LogCat::Task, "%s aborted", m_exclusive->Name());
+    ctx.log.Add(LogCat::Task, TrF("log_task_aborted", {{"task", Tr(m_exclusive->Name())}}));
     m_exclusive->Abort(ctx);
     m_exclusive = nullptr;
     ctx.act.SetUiTaskActive(false);
@@ -62,22 +62,26 @@ void Brain::StartExclusive(BotContext& ctx, Task* t) {
     m_follow.Abort(ctx);
     ctx.stuck.Reset(ctx.now);
     m_exclusive = t;
-    ctx.log.Add(LogCat::Task, "%s started", t->Name());
+    ctx.log.Add(LogCat::Task, TrF("log_task_started", {{"task", Tr(t->Name())}}));
 }
 
 void Brain::EndExclusive(BotContext& ctx, TaskStatus st) {
     if (!m_exclusive) return;
-    std::string extra;
+    LocText extra;
     if (m_exclusive == &m_travel && !m_travel.FailReason().empty()) extra = m_travel.FailReason();
     else if (m_exclusive == &m_stash && !m_stash.FailReason().empty()) extra = m_stash.FailReason();
     else if (m_exclusive == &m_pickup && !m_pickup.FailReason().empty()) extra = m_pickup.FailReason();
     else if (m_exclusive == &m_walk) {
         extra = m_walk.Result();
-        m_debugResult = "Debug walk: " + extra;
+        m_debugResult = {TrF("debug_walk_result", {{"result", extra}})};
     }
-    ctx.log.Add(LogCat::Task, "%s %s%s%s", m_exclusive->Name(), TaskStatusName(st), extra.empty() ? "" : ": ",
-                extra.c_str());
-    if (st == TaskStatus::Failed && !extra.empty()) ctx.mem.lastError = std::string(m_exclusive->Name()) + ": " + extra;
+    const LocText task = Tr(m_exclusive->Name());
+    if (extra.empty())
+        ctx.log.Add(LogCat::Task, TrF("log_task_ended", {{"task", task}, {"status", Tr(TaskStatusName(st))}}));
+    else
+        ctx.log.Add(LogCat::Task,
+                    TrF("log_task_ended_why", {{"task", task}, {"status", Tr(TaskStatusName(st))}, {"why", extra}}));
+    if (st == TaskStatus::Failed && !extra.empty()) ctx.mem.lastError = TrF("error_task_failed", {{"task", task}, {"why", extra}});
     ctx.mover.Stop(ctx.act);
     ctx.stuck.Reset(ctx.now);
     ctx.act.SetUiTaskActive(false);
@@ -86,7 +90,7 @@ void Brain::EndExclusive(BotContext& ctx, TaskStatus st) {
 
 void Brain::Hold(BotContext& ctx, GateReason why, bool closePanel) {
     if (m_exclusive && !m_exclusive->KeepThroughHold(why)) {
-        if (m_exclusive == &m_walk) m_debugResult = std::string("Debug walk stopped: ") + GateReasonText(why);
+        if (m_exclusive == &m_walk) m_debugResult = {TrF("debug_walk_stopped_why", {{"why", Tr(GateReasonText(why))}})};
         AbortExclusive(ctx);
     }
     if (m_pendingWalk >= 0 && !m_walk.KeepThroughHold(why)) m_pendingWalk = -1;
@@ -98,10 +102,10 @@ void Brain::Hold(BotContext& ctx, GateReason why, bool closePanel) {
     ctx.stuck.NoteIdle(ctx.w, ctx.now);
     if (closePanel && ctx.now - m_lastEscMs > 1500) {
         m_lastEscMs = ctx.now;
-        ctx.log.Add(LogCat::Gate, "Closing a panel the bot did not open (Esc)");
+        ctx.log.Add(LogCat::Gate, Tr("log_gate_closing_panel"));
         ctx.act.TapKey(VK_ESCAPE, 30);
     }
-    if (why != m_gate) ctx.log.Add(LogCat::Gate, "Holding: %s", GateReasonText(why));
+    if (why != m_gate) ctx.log.Add(LogCat::Gate, TrF("log_gate_holding", {{"why", Tr(GateReasonText(why))}}));
     m_gate = why;
 }
 
@@ -124,7 +128,10 @@ void Brain::TrackArea(BotContext& ctx) {
             m_lastMapHash = g.areaHash;   // the same instance, its hash known now
         }
     }
-    if (!first) ctx.log.Add(LogCat::General, "Entered %s", g.areaId.empty() ? "a new area" : g.areaId.c_str());
+    if (!first) {
+        if (g.areaId.empty()) ctx.log.Add(LogCat::General, Tr("log_entered_new_area"));
+        else ctx.log.Add(LogCat::General, TrF("log_entered_area", {{"area", g.areaId}}));
+    }
 }
 
 void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
@@ -135,7 +142,7 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
     if (in.stashNow) ctx.mem.manualStashRequested = true;
     if (in.debugCancel) {
         const bool walking = m_exclusive == &m_walk;
-        if (walking || m_pendingWalk >= 0) m_debugResult = "Debug walk stopped";
+        if (walking || m_pendingWalk >= 0) m_debugResult = {Tr("debug_walk_stopped")};
         if (walking) AbortExclusive(ctx);
         m_pendingWalk = -1;
     }
@@ -143,7 +150,7 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
         // Started once the gates pass (the button is clicked with the POEFixer menu open).
         m_pendingWalk = in.debugWalkKind;
         m_pendingWalkClick = in.debugWalkClick;
-        m_debugResult = "Debug walk: waiting (close the POEFixer menu)";
+        m_debugResult = {Tr("debug_walk_waiting")};
     }
 
     // Requests from tasks (death limit, an item on the cursor, ...): before the
@@ -191,13 +198,13 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
     out.gate = g.reason;
     if (g.stopBot) {
         out.stopBot = true;
-        out.stopReason = GateReasonText(g.reason);
+        out.stopReason = Tr(GateReasonText(g.reason));
     }
     if (g.reason != GateReason::None) {
         Hold(ctx, g.reason, g.closePanel);
         return;
     }
-    if (m_gate != GateReason::None) ctx.log.Add(LogCat::Gate, "Resumed");
+    if (m_gate != GateReason::None) ctx.log.Add(LogCat::Gate, Tr("log_gate_resumed"));
     m_gate = GateReason::None;
 
     // Emergency exit: HP below the threshold in a map -> /exit once, then stop.
@@ -207,7 +214,8 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
     if (in.running && sf.emergencyExit && w.gate.isMap && w.self.valid && !w.self.dead && w.self.hpMax > 0 &&
         w.self.hpPct < static_cast<float>(sf.emergencyExitHpPct)) {
         if (m_exitTries == 0)
-            ctx.log.Add(LogCat::General, "Emergency exit: HP %.0f%% < %d%%", w.self.hpPct, sf.emergencyExitHpPct);
+            ctx.log.Add(LogCat::General, TrF("log_emergency_exit", {{"life", Num("%.0f", w.self.hpPct)},
+                                                                     {"threshold", Num("%d", sf.emergencyExitHpPct)}}));
         AbortExclusive(ctx);
         ctx.mover.Stop(ctx.act);
         ctx.act.ReleaseAll();
@@ -217,15 +225,15 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
         if (r == ActResult::Ok) {
             m_exitTries = 0;
             out.stopBot = true;
-            out.stopReason = "Emergency exit (low HP)";
+            out.stopReason = Tr("stop_emergency_exit");
         } else if (deferred && ++m_exitTries < kEmergencyExitTries) {
-            ctx.log.Add(LogCat::General, "Emergency exit: /exit not sent yet (%s) - retrying", ActResultName(r));
-            ctx.report.detail = "Emergency exit: retrying /exit";
+            ctx.log.Add(LogCat::General, TrF("log_emergency_retry", {{"why", Tr(ActResultName(r))}}));
+            ctx.report.detail = Tr("detail_emergency_retry");
         } else {
             m_exitTries = 0;
             out.stopBot = true;
-            out.stopReason = deferred ? std::string("Emergency exit: /exit could not be sent")
-                                      : std::string("Emergency exit: /exit was not sent (") + ActResultName(r) + ")";
+            out.stopReason = deferred ? Tr("stop_emergency_not_sent")
+                                      : TrF("stop_emergency_refused", {{"why", Tr(ActResultName(r))}});
         }
         return;
     }
@@ -240,14 +248,14 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
         // With auto-respawn on, the death task starts once death is confirmed
         // (deadConfirmMs): until then this is just "dead", not a manual job.
         const bool autoRespawn = ctx.p.death.autoRespawn;
-        if (!m_deadHold) ctx.log.Add(LogCat::Death, autoRespawn ? "Dead" : "Dead: holding (respawn manually)");
+        if (!m_deadHold) ctx.log.Add(LogCat::Death, autoRespawn ? Tr("log_dead") : Tr("log_dead_manual"));
         m_deadHold = true;
         AbortExclusive(ctx);
         m_follow.Abort(ctx);
         ctx.mover.Stop(ctx.act);
         ctx.act.ReleaseAll();
         ctx.stuck.NoteIdle(ctx.w, ctx.now);
-        ctx.report.detail = autoRespawn ? "Dead" : "Dead - respawn manually";
+        ctx.report.detail = autoRespawn ? Tr("detail_dead") : Tr("detail_dead_manual");
         return;
     }
     m_deadHold = false;
@@ -259,10 +267,10 @@ void Brain::Tick(BotContext& ctx, const BrainInputs& in, BrainOutput& out) {
         StartExclusive(ctx, &m_walk);
         m_walk.Start(ctx);
         if (!m_walk.Result().empty()) {   // nothing to walk to
-            m_debugResult = "Debug walk: " + m_walk.Result();
+            m_debugResult = {TrF("debug_walk_result", {{"result", m_walk.Result()}})};
             m_exclusive = nullptr;
         } else {
-            m_debugResult = "Debug walk: running";
+            m_debugResult = {Tr("debug_walk_running")};
         }
     }
     if (!in.running && m_exclusive != &m_walk) {
@@ -393,7 +401,7 @@ void Brain::FillView(BotView& v, const BotContext& ctx) const {
         v.interactables.push_back(iv);
     }
     v.markers.clear();
-    for (const auto& m : ctx.report.markers) v.markers.push_back({m.grid, m.color, m.label});
+    for (const auto& m : ctx.report.markers) v.markers.push_back({m.grid, m.color, m.label ? m.label : ""});
     v.monsters = static_cast<int>(w.monsters.size());
     v.groundItems = static_cast<int>(w.items.size());
     v.usedCells = w.inv.usedCells;

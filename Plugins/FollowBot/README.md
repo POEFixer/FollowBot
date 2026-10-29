@@ -158,13 +158,17 @@ quivers), Accessories (rings, amulets, belts), Other.
   category is off.
 - **Reference currency** - Chaos, Divine or Exalted Orb; every value on the tab is in it.
 - **Compare the value per backpack cell** - divides the value by the item's size first.
-- Prices come from POEFixer's price list (Settings -> Prices). It is in English: with another client language
-  most prices are unknown. Magic and rare equipment has no price (only uniques do).
+- Prices come from POEFixer's price list (Settings -> Prices). POEFixer 371 and newer price an item by what it
+  is (its base item, rarity and unique), so prices work with any client language. An older POEFixer looks the
+  price up by the name your client shows, and its price list is in English: with another client language most
+  prices are unknown there. Magic and rare equipment has no price (only uniques do).
 
 ### Name lists
 One entry per line, any letter case. An entry matches when it appears in the base name, the unique name or the
 game path (e.g. `CurrencyRerollRare`). Put it in double quotes (`"Chaos Orb"`) to require the whole name, so
-`Greater Chaos Orb` is not matched. Names are the ones your client shows.
+`Greater Chaos Orb` is not matched. Names are the game's own item names in your client's language, as the
+label on the ground shows them (a Russian client: `"Сфера хаоса"`); the game path is the same in every
+language.
 
 ### Where and when
 - **Scan radius** (40 cells) - items farther from you are ignored.

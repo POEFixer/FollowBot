@@ -41,4 +41,14 @@ bool DeleteProfile(Settings& s, int idx);
 // At least one profile, unique non-empty names, activeProfile names one.
 void EnsureProfiles(Settings& s);
 
+// A profile name the plugin wrote itself: the shipped "Default", New's "Profile" and
+// either one numbered by UniqueProfileName ("Profile 2", "Default 3"). The settings file
+// keeps the English; the UI shows them in the program language (ui::ProfileName).
+enum class PluginProfileBase { None, Default, Profile };
+struct PluginProfileName {
+    PluginProfileBase base = PluginProfileBase::None;   // None: the user's own name
+    int               number = 0;                       // 0: no number
+};
+PluginProfileName ParsePluginProfileName(std::string_view name);
+
 }  // namespace fb

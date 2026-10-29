@@ -85,25 +85,26 @@ const Interactable* PortalTrip::FindReturnPortal(const std::vector<Interactable>
 const char* PortalTrip::PhaseText() const {
     switch (m_phase) {
         case Phase::Idle:       return "";
-        case Phase::Press:      return "opening a portal";
-        case Phase::WaitPortal: return "waiting for the portal to appear";
-        case Phase::FindReturn: return "looking for the portal back";
+        case Phase::Press:      return Key("trip_phase_press");
+        case Phase::WaitPortal: return Key("trip_phase_wait_portal");
+        case Phase::FindReturn: return Key("trip_phase_find_return");
         case Phase::Click:
-            return m_click.CurrentPhase() == WorldClick::Phase::Approach ? "walking to the portal" : "clicking the portal";
-        case Phase::WaitArea:   return "waiting for the area to change";
-        case Phase::Done:       return m_returning ? "back in the map" : "arrived";
-        case Phase::Failed:     return "failed";
+            return m_click.CurrentPhase() == WorldClick::Phase::Approach ? Key("trip_phase_walking") : Key("trip_phase_clicking");
+        case Phase::WaitArea:   return Key("trip_phase_wait_area");
+        case Phase::Done:       return m_returning ? Key("trip_phase_back") : Key("trip_phase_arrived");
+        case Phase::Failed:     return Key("task_status_failed");
     }
     return "";
 }
 
-TripStatus PortalTrip::Fail(BotContext& ctx, const std::string& why, TripStatus st) {
+TripStatus PortalTrip::Fail(BotContext& ctx, const LocText& why, TripStatus st) {
     m_click.Abort(ctx);
     ctx.mover.Stop(ctx.act);
     m_fail = why;
     m_phase = Phase::Failed;
     m_failStatus = st;
-    ctx.log.Add(LogCat::Stash, "Portal trip %s: %s", st == TripStatus::Stranded ? "stranded" : "failed", why.c_str());
+    ctx.log.Add(LogCat::Stash, TrF(st == TripStatus::Stranded ? Key("log_trip_stranded") : Key("log_trip_failed"),
+                                   {{"why", why}}));
     return st;
 }
 
@@ -132,7 +133,8 @@ void PortalTrip::BeginLeave(BotContext& ctx) {
     t.originAreaId = w.gate.areaId;
     t.originGrid = w.self.grid;
     t.startedMs = ctx.now;
-    ctx.log.Add(LogCat::Stash, "Portal trip: leaving %s to stash", w.gate.areaId.empty() ? "the map" : w.gate.areaId.c_str());
+    if (w.gate.areaId.empty()) ctx.log.Add(LogCat::Stash, Tr("log_trip_leaving_map"));
+    else ctx.log.Add(LogCat::Stash, TrF("log_trip_leaving", {{"area", w.gate.areaId}}));
 }
 
 void PortalTrip::BeginReturn(BotContext& ctx) {
@@ -148,7 +150,7 @@ void PortalTrip::BeginReturn(BotContext& ctx) {
     m_clickMs = 0;
     m_failStatus = TripStatus::Stranded;
     if (m_haveArrival && m_arrivalArea != w.gate.areaCounter) m_haveArrival = false;   // from another visit
-    if (!m_haveArrival) ctx.log.Add(LogCat::Stash, "Portal trip: returning through the portal nearest to us");
+    if (!m_haveArrival) ctx.log.Add(LogCat::Stash, Tr("log_trip_returning_nearest"));
 }
 
 void PortalTrip::StartClick(BotContext& ctx, const Interactable& portal) {
@@ -157,8 +159,11 @@ void PortalTrip::StartClick(BotContext& ctx, const Interactable& portal) {
     m_phase = Phase::Click;
     m_phaseMs = ctx.now;
     m_click.Start(TargetOf(portal), ClickParams(ctx), ctx.now);
-    ctx.log.Add(LogCat::Stash, "Portal trip: portal %u at (%.0f, %.0f), type %d%s", portal.id, portal.grid.x, portal.grid.y,
-                portal.portalType, m_returning ? " (the way back)" : "");
+    ctx.log.Add(LogCat::Stash, TrF(m_returning ? Key("log_trip_portal_back") : Key("log_trip_portal"),
+                                   {{"id", Num("%u", portal.id)},
+                                    {"x", Num("%.0f", portal.grid.x)},
+                                    {"y", Num("%.0f", portal.grid.y)},
+                                    {"type", Num("%d", portal.portalType)}}));
 }
 
 TripStatus PortalTrip::TickLeave(BotContext& ctx) {
@@ -170,11 +175,11 @@ TripStatus PortalTrip::TickLeave(BotContext& ctx) {
         case Phase::Press: {
             if (s.portalKey == 0) {
                 ctx.mem.trip = BotMemory::StashTrip{};
-                return Fail(ctx, "no portal key set", TripStatus::Failed);
+                return Fail(ctx, Tr("trip_fail_no_key"), TripStatus::Failed);
             }
             if (enemies) {
                 ctx.mem.trip = BotMemory::StashTrip{};
-                return Fail(ctx, "enemies came close before the portal opened", TripStatus::Failed);
+                return Fail(ctx, Tr("trip_fail_enemies"), TripStatus::Failed);
             }
             ctx.mover.Stop(ctx.act);
             m_before.clear();
@@ -184,21 +189,20 @@ TripStatus PortalTrip::TickLeave(BotContext& ctx) {
             if (r != ActResult::Ok) {
                 if (ctx.now - m_phaseMs > static_cast<uint64_t>(kPressRetryMs)) {
                     ctx.mem.trip = BotMemory::StashTrip{};
-                    return Fail(ctx, std::string("could not press the portal key (") + ActResultName(r) + ")",
-                                TripStatus::Failed);
+                    return Fail(ctx, TrF("trip_fail_key_press", {{"why", Tr(ActResultName(r))}}), TripStatus::Failed);
                 }
                 return TripStatus::Running;
             }
             ++m_presses;
             m_phase = Phase::WaitPortal;
             m_phaseMs = ctx.now;
-            ctx.log.Add(LogCat::Stash, "Portal trip: pressed the portal key (%d/%d)", m_presses, kMaxPresses);
+            ctx.log.Add(LogCat::Stash, TrF("log_trip_key_pressed", {{"press", Num("%d", m_presses)}, {"max", Num("%d", kMaxPresses)}}));
             return TripStatus::Running;
         }
         case Phase::WaitPortal: {
             if (enemies) {
                 ctx.mem.trip = BotMemory::StashTrip{};
-                return Fail(ctx, "enemies came close before the portal opened", TripStatus::Failed);
+                return Fail(ctx, Tr("trip_fail_enemies"), TripStatus::Failed);
             }
             if (const Interactable* p = FindNewPortal(w.interactables, m_before, w.self.grid, s.portalSearchCells)) {
                 StartClick(ctx, *p);
@@ -206,16 +210,13 @@ TripStatus PortalTrip::TickLeave(BotContext& ctx) {
             }
             if (ctx.now - m_phaseMs >= static_cast<uint64_t>(s.portalWaitMs)) {
                 if (m_presses < kMaxPresses) {
-                    ctx.log.Add(LogCat::Stash, "Portal trip: no portal after %d ms, pressing the key again", s.portalWaitMs);
+                    ctx.log.Add(LogCat::Stash, TrF("log_trip_press_again", {{"ms", Num("%d", s.portalWaitMs)}}));
                     m_phase = Phase::Press;
                     m_phaseMs = ctx.now;
                     return TripStatus::Running;
                 }
                 ctx.mem.trip = BotMemory::StashTrip{};
-                return Fail(ctx,
-                            "no portal appeared after pressing the portal key twice (is the key bound to the portal "
-                            "skill in the game, and can a portal be opened here?)",
-                            TripStatus::Failed);
+                return Fail(ctx, Tr("trip_fail_no_portal"), TripStatus::Failed);
             }
             return TripStatus::Running;
         }
@@ -230,7 +231,7 @@ TripStatus PortalTrip::TickLeave(BotContext& ctx) {
         case Phase::FindReturn:
             break;
     }
-    return Fail(ctx, "the trip was not started", TripStatus::Failed);
+    return Fail(ctx, Tr("trip_fail_not_started"), TripStatus::Failed);
 }
 
 TripStatus PortalTrip::TickReturn(BotContext& ctx) {
@@ -246,7 +247,7 @@ TripStatus PortalTrip::TickReturn(BotContext& ctx) {
             }
             const int waitMs = (std::max)(ctx.p.stash.portalWaitMs, 3000);
             if (ctx.now - m_phaseMs >= static_cast<uint64_t>(waitMs))
-                return Fail(ctx, "no portal back found near the arrival point", TripStatus::Stranded);
+                return Fail(ctx, Tr("trip_fail_no_way_back"), TripStatus::Stranded);
             return TripStatus::Running;
         }
         case Phase::Click:
@@ -261,20 +262,19 @@ TripStatus PortalTrip::TickReturn(BotContext& ctx) {
         case Phase::WaitPortal:
             break;
     }
-    return Fail(ctx, "the way back was not started", TripStatus::Stranded);
+    return Fail(ctx, Tr("trip_fail_back_not_started"), TripStatus::Stranded);
 }
 
 TripStatus PortalTrip::TickClickAndArea(BotContext& ctx) {
     const World& w = ctx.w;
     const TravelSettings& t = ctx.p.travel;
     const TripStatus failAs = m_returning ? TripStatus::Stranded : TripStatus::Failed;
-    char buf[200];
 
     if (m_phase == Phase::Click && w.gate.areaCounter == m_startArea) {
         const Interactable* p = w.FindInteractable(m_portalId);
         if (!p) {
             if (!m_returning) ctx.mem.trip = BotMemory::StashTrip{};
-            return Fail(ctx, "the portal disappeared", failAs);
+            return Fail(ctx, Tr("trip_fail_portal_gone"), failAs);
         }
         m_click.UpdateTarget(TargetOf(*p));
         const WorldClickStatus st = m_click.Tick(ctx);
@@ -283,7 +283,7 @@ TripStatus PortalTrip::TickClickAndArea(BotContext& ctx) {
         if (st == WorldClickStatus::Failed) {
             if (m_clicks >= t.maxAttempts) {
                 if (!m_returning) ctx.mem.trip = BotMemory::StashTrip{};
-                return Fail(ctx, "could not click the portal: " + m_click.FailReason(), failAs);
+                return Fail(ctx, TrF("trip_fail_click", {{"why", Tr(m_click.FailReason())}}), failAs);
             }
             m_click.Start(TargetOf(*p), ClickParams(ctx), ctx.now);   // a fresh approach
             return TripStatus::Running;
@@ -300,24 +300,23 @@ TripStatus PortalTrip::TickClickAndArea(BotContext& ctx) {
         if (!m_returning) {
             if (!w.gate.isTown && !w.gate.isHideout) {
                 ctx.mem.trip = BotMemory::StashTrip{};
-                std::snprintf(buf, sizeof(buf), "the portal led to %s, not to a town or hideout",
-                              w.gate.areaId.empty() ? "another area" : w.gate.areaId.c_str());
-                return Fail(ctx, buf, TripStatus::Failed);
+                return Fail(ctx, w.gate.areaId.empty() ? Tr("trip_fail_wrong_area_unknown")
+                                                       : TrF("trip_fail_wrong_area", {{"area", w.gate.areaId}}),
+                            TripStatus::Failed);
             }
             if (!w.self.valid && ctx.now - m_clickMs < kArrivalSettleMs) return TripStatus::Running;
             m_arrival = w.self.grid;
             m_haveArrival = w.self.valid;
             m_arrivalArea = w.gate.areaCounter;
             m_phase = Phase::Done;
-            ctx.log.Add(LogCat::Stash, "Portal trip: arrived in %s", w.gate.areaId.c_str());
+            ctx.log.Add(LogCat::Stash, TrF("log_trip_arrived", {{"area", w.gate.areaId}}));
             return TripStatus::Arrived;
         }
         const BotMemory::StashTrip& trip = ctx.mem.trip;
         if (!trip.originAreaId.empty() && trip.originAreaId != w.gate.areaId)
-            ctx.log.Add(LogCat::Stash, "Portal trip: returned to %s (the trip started in %s)", w.gate.areaId.c_str(),
-                        trip.originAreaId.c_str());
+            ctx.log.Add(LogCat::Stash, TrF("log_trip_returned_other", {{"area", w.gate.areaId}, {"origin", trip.originAreaId}}));
         else
-            ctx.log.Add(LogCat::Stash, "Portal trip: back in %s", w.gate.areaId.c_str());
+            ctx.log.Add(LogCat::Stash, TrF("log_trip_back", {{"area", w.gate.areaId}}));
         ctx.mem.trip = BotMemory::StashTrip{};
         m_phase = Phase::Done;
         return TripStatus::Arrived;
@@ -326,11 +325,9 @@ TripStatus PortalTrip::TickClickAndArea(BotContext& ctx) {
         const Interactable* p = w.FindInteractable(m_portalId);
         if (m_clicks >= t.maxAttempts || !p) {
             if (!m_returning) ctx.mem.trip = BotMemory::StashTrip{};
-            std::snprintf(buf, sizeof(buf), "the area did not change after clicking the portal %d time%s", m_clicks,
-                          m_clicks == 1 ? "" : "s");
-            return Fail(ctx, buf, failAs);
+            return Fail(ctx, TrF("trip_fail_no_area_change", {{"clicks", Num("%d", m_clicks)}}), failAs);
         }
-        ctx.log.Add(LogCat::Stash, "Portal trip: the area did not change, clicking the portal again");
+        ctx.log.Add(LogCat::Stash, Tr("log_trip_click_again"));
         m_click.Start(TargetOf(*p), ClickParams(ctx), ctx.now);
         m_phase = Phase::Click;
     }

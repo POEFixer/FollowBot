@@ -134,6 +134,37 @@ inline LootCandidate& Slot(std::vector<LootCandidate>& v, size_t i) {
     return v.back();
 }
 
+// The price memo's key for an item priced by what it is (CanPriceByItem): its base by
+// the game path (one localized name can name two bases, e.g. two Korean runes), a
+// unique also by its unique name; a unique without a readable name is its own entry
+// (the host tells such uniques apart by their art). Items with the same key share one
+// host lookup.
+inline std::string ItemPriceKey(const LootItemInfo& info, bool unique) {
+    std::string key;
+    key.reserve(info.path.size() + info.uniqueName.size() + 16);
+    if (unique && info.uniqueName.empty()) {
+        key += "U#";
+        key += std::to_string(info.id);
+        return key;
+    }
+    key += unique ? "U:" : "B:";
+    key += info.path;
+    if (unique) {
+        key += '\n';
+        key += info.uniqueName;
+    }
+    return key;
+}
+
+// The price memo's key for an item priced by the name the game shows (older hosts).
+inline std::string NamePriceKey(const std::string& name, bool unique) {
+    std::string key;
+    key.reserve(name.size() + 2);
+    key += unique ? "u:" : "b:";
+    key += name;
+    return key;
+}
+
 }  // namespace lootcore
 
 inline void LootScanner::Clear() {
@@ -268,39 +299,66 @@ inline void LootScanner::UpdateWith(BotContext& ctx, ILootHost& host) {
             e.decidedFor = 0;
         }
 
-        // 2. Price (memoised per name for the area; rationed per pass).
+        // 2. Price (memoised per item, or per name on an older host, for the area;
+        // rationed per pass). A host that prices by item (POEFixer 371+) is right in
+        // every game language; the name lookup finds only English names.
         const LootCategoryRule& rule = s.categories[static_cast<size_t>(e.info.category)];
+        if (e.priceDone && e.priceRetryAtMs != 0 && now >= e.priceRetryAtMs) {
+            e.priceDone = false;   // priced by name while the host could not read it: ask by item again
+            e.priceRetryAtMs = 0;
+        }
         if (!e.priceDone && (diag || s.valueEnabled || rule.minValue > 0.f)) {
             const bool unique = e.info.category == ItemCategory::Uniques;
+            const bool priced = unique || PricedByBaseName(e.info.category);
+            const bool byItem = priced && host.CanPriceByItem();
             const std::string* name = nullptr;
             if (unique) name = &e.info.uniqueName;   // unidentified uniques: the host names them by their art
-            else if (PricedByBaseName(e.info.category)) name = &e.info.baseName;
-            if (!name || name->empty()) {
+            else if (priced) name = &e.info.baseName;
+            const bool byName = name && !name->empty();
+            if (!byItem && !byName) {
                 e.priceDone = true;
                 e.priceTrusted = false;
                 e.decidedFor = 0;
             } else {
-                std::string key;
-                key.reserve(name->size() + 2);
-                key += unique ? "u:" : "b:";
-                key += *name;
+                std::string key = byItem ? ItemPriceKey(e.info, unique) : NamePriceKey(*name, unique);
                 auto it = m_prices.find(key);
                 if (it == m_prices.end() && priceBudget > 0) {
                     --priceBudget;
                     ++m_priceLookups;
                     PriceQuote q;
                     PriceMemo m;
-                    if (host.LookupPrice(*name, q) && q.found && TrustPriceCategory(q.category, unique) &&
+                    // By item first; an item the host could not read is asked by its name.
+                    const bool answeredByItem = byItem && host.LookupPriceByItem(gi.address, q);
+                    bool answered = answeredByItem;
+                    if (!answered && byName) {
+                        q = PriceQuote{};
+                        answered = host.LookupPrice(*name, q);
+                    }
+                    if (answered && q.found && TrustPriceCategory(q.category, unique) &&
                         FiniteNonNegative(q.chaos) && FiniteNonNegative(q.divine) && FiniteNonNegative(q.exalt)) {
                         m.trusted = true;
                         m.chaos = q.chaos;
                         m.divine = q.divine;
                         m.exalt = q.exalt;
                     }
-                    it = m_prices.emplace(std::move(key), m).first;
+                    if (byItem && !answeredByItem) {
+                        // The host could not read the item (its item data may still be
+                        // downloading): this item takes the name's answer for now, never kept
+                        // under the base's key for the area, and is asked by item again later.
+                        e.priceDone = true;
+                        e.priceTrusted = m.trusted;
+                        e.unitChaos = m.chaos;
+                        e.unitDivine = m.divine;
+                        e.unitExalt = m.exalt;
+                        e.decidedFor = 0;
+                        e.priceRetryAtMs = now + kRetryMs;
+                    } else {
+                        it = m_prices.emplace(std::move(key), m).first;
+                    }
                 }
                 if (it != m_prices.end()) {
                     e.priceDone = true;
+                    e.priceRetryAtMs = 0;
                     e.priceTrusted = it->second.trusted;
                     e.unitChaos = it->second.chaos;
                     e.unitDivine = it->second.divine;

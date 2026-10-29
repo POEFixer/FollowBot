@@ -18,6 +18,28 @@ using PluginUi::Hint;
 using PluginUi::LabelColumn;
 using PluginUi::Tip;
 
+namespace {
+
+// The status window's corners (DebugSettings::statusAnchor order).
+constexpr const char* kAnchorKeys[] = {I18n::Key("debug_anchor_top_left"),     I18n::Key("debug_anchor_top_centre"),
+                                       I18n::Key("debug_anchor_top_right"),    I18n::Key("debug_anchor_bottom_left"),
+                                       I18n::Key("debug_anchor_bottom_centre"), I18n::Key("debug_anchor_bottom_right")};
+
+// "Find UI by control name" match kinds (FollowBotPlugin::m_findUiMatch order).
+constexpr const char* kFindMatchKeys[] = {I18n::Key("debug_find_exact"), I18n::Key("debug_find_prefix"),
+                                          I18n::Key("debug_find_text")};
+
+// The debug walks' targets.
+constexpr InteractKind kWalks[] = {InteractKind::Stash,          InteractKind::GuildStash, InteractKind::Portal,
+                                   InteractKind::AreaTransition, InteractKind::Checkpoint, InteractKind::Waypoint};
+
+// A log line as shown: "<seconds> s <category>: <text>".
+std::string LogLineText(double agoSeconds, const char* category, const std::string& text) {
+    return I18n::TrF("debug_log_line", {{"seconds", Num("%6.1f", agoSeconds)}, {"category", category}, {"text", text}});
+}
+
+}  // namespace
+
 void FollowBotPlugin::DrawTabDebug() {
     DebugSettings& d = m_settings.global.debug;
     const BotView* v = m_uiView.get();
@@ -25,48 +47,49 @@ void FollowBotPlugin::DrawTabDebug() {
 
     // --- Overlay -----------------------------------------------------------
     PluginUi::BeginCard("##overlay");
-    Heading(ICON_FA_EYE, "World overlay", "Draws what the bot plans on top of the game (only while the game is in front).");
-    changed |= Check("Show the debug overlay", "overlay", &d.overlay, "Path, targets, leader markers, objects and stuck marks.");
+    Heading(ICON_FA_EYE, I18n::Tr("debug_overlay"), I18n::Tr("debug_overlay_help"));
+    changed |= Check(I18n::Tr("debug_show_overlay"), "overlay", &d.overlay, I18n::Tr("debug_show_overlay_tip"));
     ImGui::BeginDisabled(!d.overlay);
     if (PluginUi::WideEnoughForTwoColumns() && ImGui::BeginTable("##ovcols", 2, ImGuiTableFlags_SizingStretchSame)) {
         ImGui::TableNextColumn();
-        changed |= Check("Path", "ovPath", &d.showPath, "The planned path on the ground.");
-        changed |= Check("Look-ahead point", "ovLook", &d.showLookahead, "The point the steering aims at.");
-        changed |= Check("Cursor target", "ovCursor", &d.showCursor, "Where the bot puts the cursor.");
-        changed |= Check("Leader and his route", "ovLeader", &d.showLeader, "His position, last known position and route.");
-        changed |= Check("Follow / stop circles", "ovCircles", &d.showCircles, "Around the leader.");
+        changed |= Check(I18n::Tr("debug_ov_path"), "ovPath", &d.showPath, I18n::Tr("debug_ov_path_tip"));
+        changed |= Check(I18n::Tr("debug_ov_lookahead"), "ovLook", &d.showLookahead, I18n::Tr("debug_ov_lookahead_tip"));
+        changed |= Check(I18n::Tr("debug_ov_cursor"), "ovCursor", &d.showCursor, I18n::Tr("debug_ov_cursor_tip"));
+        changed |= Check(I18n::Tr("debug_ov_leader_route"), "ovLeader", &d.showLeader, I18n::Tr("debug_ov_leader_tip"));
+        changed |= Check(I18n::Tr("debug_ov_circles"), "ovCircles", &d.showCircles, I18n::Tr("debug_ov_circles_tip"));
         ImGui::TableNextColumn();
-        changed |= Check("Leader route", "ovRoute", &d.showRoute, "The route the server gave him.");
-        changed |= Check("Objects", "ovObjects", &d.showInteractables, "Transitions, portals, waypoints, stashes with their kind.");
-        changed |= Check("Loot targets", "ovLoot", &d.showLoot, "Items the bot wants and items it gave up on.");
-        changed |= Check("Combat radius", "ovCombat", &d.showCombat, "Combat radius around you and the leash around the leader.");
-        changed |= Check("Stuck marks", "ovStuck", &d.showStuck, "Where it got stuck and the spots it avoids.");
+        changed |= Check(I18n::Tr("debug_ov_route"), "ovRoute", &d.showRoute, I18n::Tr("debug_ov_route_tip"));
+        changed |= Check(I18n::Tr("debug_ov_objects"), "ovObjects", &d.showInteractables, I18n::Tr("debug_ov_objects_tip"));
+        changed |= Check(I18n::Tr("debug_ov_loot"), "ovLoot", &d.showLoot, I18n::Tr("debug_ov_loot_tip"));
+        changed |= Check(I18n::Tr("debug_ov_combat"), "ovCombat", &d.showCombat, I18n::Tr("debug_ov_combat_tip"));
+        changed |= Check(I18n::Tr("debug_ov_stuck"), "ovStuck", &d.showStuck, I18n::Tr("debug_ov_stuck_tip"));
         ImGui::EndTable();
     } else {
-        changed |= Check("Path", "ovPath", &d.showPath, nullptr);
-        changed |= Check("Look-ahead point", "ovLook", &d.showLookahead, nullptr);
-        changed |= Check("Cursor target", "ovCursor", &d.showCursor, nullptr);
-        changed |= Check("Leader", "ovLeader", &d.showLeader, nullptr);
-        changed |= Check("Leader route", "ovRoute", &d.showRoute, nullptr);
-        changed |= Check("Follow / stop circles", "ovCircles", &d.showCircles, nullptr);
-        changed |= Check("Objects", "ovObjects", &d.showInteractables, nullptr);
-        changed |= Check("Loot targets", "ovLoot", &d.showLoot, nullptr);
-        changed |= Check("Combat radius", "ovCombat", &d.showCombat, nullptr);
-        changed |= Check("Stuck marks", "ovStuck", &d.showStuck, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_path"), "ovPath", &d.showPath, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_lookahead"), "ovLook", &d.showLookahead, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_cursor"), "ovCursor", &d.showCursor, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_leader"), "ovLeader", &d.showLeader, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_route"), "ovRoute", &d.showRoute, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_circles"), "ovCircles", &d.showCircles, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_objects"), "ovObjects", &d.showInteractables, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_loot"), "ovLoot", &d.showLoot, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_combat"), "ovCombat", &d.showCombat, nullptr);
+        changed |= Check(I18n::Tr("debug_ov_stuck"), "ovStuck", &d.showStuck, nullptr);
     }
     ImGui::EndDisabled();
-    changed |= Check("Status window while running", "statusWin", &d.statusWindow,
-                     "A small panel in the game: mode, task, hold reason, leader distance, deaths.");
+    changed |= Check(I18n::Tr("debug_status_window"), "statusWin", &d.statusWindow, I18n::Tr("debug_status_window_tip"));
     ImGui::BeginDisabled(!d.statusWindow);
     {
-        const LabelColumn col({"Position", "Size"});
-        col.Row("Position");
+        const LabelColumn col({I18n::Tr("debug_status_position"), I18n::Tr("debug_status_size")});
+        col.Row(I18n::Tr("debug_status_position"));
         int anchor = d.statusAnchor;
-        if (PluginUi::Combo("##anchor", anchor, {"Top left", "Top centre", "Top right", "Bottom left", "Bottom centre", "Bottom right"})) {
+        const std::vector<const char*> anchors = ui::TrAll(kAnchorKeys);
+        if (PluginUi::Combo("##anchor", anchor, anchors.data(), static_cast<int>(anchors.size()))) {
             d.statusAnchor = anchor;
             changed = true;
         }
-        changed |= ui::FloatRow(col, "Size", "##statusScale", &d.statusScale, 0.7f, 1.6f, "%.1f x", "Scale of the status window.");
+        changed |= ui::FloatRow(col, I18n::Tr("debug_status_size"), "##statusScale", &d.statusScale, 0.7f, 1.6f,
+                                I18n::Key("unit_times"), "%.1f", I18n::Tr("debug_status_size_tip"));
     }
     ImGui::EndDisabled();
     PluginUi::EndCard();
@@ -74,54 +97,47 @@ void FollowBotPlugin::DrawTabDebug() {
 
     // --- Tools ---------------------------------------------------------------
     PluginUi::BeginCard("##tools");
-    Heading(ICON_FA_TOOLBOX, "Tools",
-            "Dumps write text files to the plugin's dumps folder; they help to check object names and UI\n"
-            "elements after a game patch. The walk tests run without a leader and stop at the target.");
+    Heading(ICON_FA_TOOLBOX, I18n::Tr("debug_tools"), I18n::Tr("debug_tools_help"));
     const bool uiNames = ctx()->Ui.HasControlNames();
     const bool uiSearch = ctx()->Ui.HasFindElements();
-    if (ImGui::Button("Dump entities near me###dumpEnt")) RequestJob(Job::DumpEntities);
-    Tip("Every entity within 60 cells: path, type, components, state values, flags.");
+    if (ImGui::Button(I18n::TrId("debug_dump_entities"))) RequestJob(Job::DumpEntities);
+    Tip(I18n::Tr("debug_dump_entities_tip"));
     ImGui::SameLine();
-    if (ImGui::Button("Dump UI tree###dumpUi")) RequestJob(Job::DumpUi);
-    Tip(uiNames ? "Every visible UI element with its control name, text and screen rectangle.\n"
-                  "Control names are the same in every game language."
-                : "Every visible UI element with its text and screen rectangle.\n"
-                  "Control names need POEFixer 365 or newer.");
+    if (ImGui::Button(I18n::TrId("debug_dump_ui"))) RequestJob(Job::DumpUi);
+    Tip(uiNames ? I18n::Tr("debug_dump_ui_tip") : I18n::Tr("debug_dump_ui_tip_old"));
     ImGui::SameLine();
-    if (PluginUi::SubtleButton("Test death screen lookup###probeDeath")) RequestJob(Job::ProbeDeath);
-    Tip("Reports whether the death screen and its respawn buttons can be found right now,\n"
-        "which are visible, where they are and which one the bot would click.\n"
-        "Most useful while the character is dead.");
+    if (PluginUi::SubtleButton(I18n::TrId("debug_probe_death"))) RequestJob(Job::ProbeDeath);
+    Tip(I18n::Tr("debug_probe_death_tip"));
     ImGui::Spacing();
 
     // Find UI elements by their locale-independent control name.
-    ImGui::TextUnformatted("Find UI by control name:");
+    ImGui::TextUnformatted(I18n::Tr("debug_find_ui"));
     ImGui::SameLine();
     ImGui::TextDisabled("?");
-    Tip("Searches the game UI (up to 32 levels, 4000 elements) and lists the first 12 matches with\n"
-        "their control-name path, visibility, screen rectangle and text, here and in the decision log.\n"
-        "Example: death_screen, respawn_at_checkpoint_button.");
+    Tip(I18n::Tr("debug_find_ui_tip"));
     ImGui::BeginDisabled(!uiSearch);
     {
         const float em = ImGui::GetFontSize();
         const ImGuiStyle& st = ImGui::GetStyle();
-        const float findW = PluginUi::ButtonWidth("Find");
-        const float comboW = em * 11.0f;
+        const char* findLabel = I18n::TrId("debug_find");
+        const float findW = PluginUi::ButtonWidth(findLabel);
+        // The match combo fits its widest translated item, plus the arrow button.
+        const std::vector<const char*> matches = ui::TrAll(kFindMatchKeys);
+        float widest = 0.0f;
+        for (const char* m : matches) widest = (std::max)(widest, ImGui::CalcTextSize(m).x);
+        const float comboW = widest + st.FramePadding.x * 2.0f + ImGui::GetFrameHeight();
         const float avail = ImGui::GetContentRegionAvail().x;
         const float inputW = (std::max)(em * 8.0f, avail - comboW - findW - st.ItemSpacing.x * 2.0f);
         ImGui::SetNextItemWidth(inputW);
-        const bool enter = PluginUi::InputString("##findUiText", "control name", m_findUiText,
+        const bool enter = PluginUi::InputString("##findUiText", I18n::Tr("debug_find_hint"), m_findUiText,
                                                  ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(comboW);
-        PluginUi::Combo("##findUiMatch", m_findUiMatch, {"Exact name", "Name starts with", "Localized text"});
-        Tip("Exact name: the control name equals the text.\n"
-            "Name starts with: the control name begins with the text.\n"
-            "Localized text: the text shown in your game language equals it.");
+        PluginUi::Combo("##findUiMatch", m_findUiMatch, matches.data(), static_cast<int>(matches.size()));
+        Tip(I18n::Tr("debug_find_match_tip"));
         ImGui::SameLine();
-        const bool find = ImGui::Button("Find###findUiGo");
-        Check("Visible elements only", "findUiVisible", &m_findUiVisibleOnly,
-              "On: the element and every parent must be visible.\nOff: hidden elements are listed too (e.g. a button the game shows later).");
+        const bool find = ImGui::Button(findLabel);
+        Check(I18n::Tr("debug_find_visible"), "findUiVisible", &m_findUiVisibleOnly, I18n::Tr("debug_find_visible_tip"));
         if ((find || enter) && uiSearch) {
             {
                 std::lock_guard<std::mutex> lock(m_findUiMu);
@@ -133,80 +149,84 @@ void FollowBotPlugin::DrawTabDebug() {
         }
     }
     ImGui::EndDisabled();
-    if (!uiSearch) ui::HostNote("Searching the UI by name needs POEFixer 365 or newer.");
+    if (!uiSearch) ui::HostNote(I18n::Tr("debug_find_needs_365"));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Walk to the nearest:");
-    const struct { const char* label; InteractKind kind; } kWalks[] = {
-        {"Stash###wStash", InteractKind::Stash},
-        {"Guild stash###wGuild", InteractKind::GuildStash},
-        {"Portal###wPortal", InteractKind::Portal},
-        {"Transition###wTrans", InteractKind::AreaTransition},
-        {"Checkpoint###wCp", InteractKind::Checkpoint},
-        {"Waypoint###wWp", InteractKind::Waypoint},
-    };
+    ImGui::TextUnformatted(I18n::Tr("debug_walk_to"));
     for (size_t i = 0; i < sizeof(kWalks) / sizeof(kWalks[0]); ++i) {
         if (i % 3 != 0) ImGui::SameLine();
-        if (PluginUi::SubtleButton(kWalks[i].label)) RequestDebugWalk(kWalks[i].kind, m_debugWalkClick);
+        if (PluginUi::SubtleButton(I18n::TrId(InteractKindName(kWalks[i])))) RequestDebugWalk(kWalks[i], m_debugWalkClick);
     }
-    Check("Click it on arrival", "walkClick", &m_debugWalkClick, "Tests the hover and the click too (a portal or transition takes you through).");
+    Check(I18n::Tr("debug_walk_click"), "walkClick", &m_debugWalkClick, I18n::Tr("debug_walk_click_tip"));
     if (m_debugActive.load()) {
         ImGui::SameLine();
-        if (ImGui::Button("Stop walk###stopWalk")) m_debugCancel = true;
+        if (ImGui::Button(I18n::TrId("debug_walk_stop"))) m_debugCancel = true;
     }
-    if (v && !v->debugResult.empty()) Hint(v->debugResult.c_str());
+    if (v && !v->debugResult.empty()) {
+        std::string result;
+        for (const LocText& line : v->debugResult) {
+            if (!result.empty()) result += '\n';
+            result += ui::Text(line);
+        }
+        Hint(result.c_str());
+    }
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Decision log ----------------------------------------------------------
     PluginUi::BeginCard("##log");
-    Heading(ICON_FA_SCROLL, "Decision log", "What the bot decided and why (the newest 400 lines).");
+    Heading(ICON_FA_SCROLL, I18n::Tr("debug_log"), I18n::Tr("debug_log_help"));
     {
-        const LabelColumn col({"Filter", "Category"});
-        col.Row("Filter");
-        PluginUi::InputString("##logFilter", "text to find", m_logFilter);
-        col.Row("Category");
+        const LabelColumn col({I18n::Tr("debug_log_filter"), I18n::Tr("debug_log_category")});
+        col.Row(I18n::Tr("debug_log_filter"));
+        PluginUi::InputString("##logFilter", I18n::Tr("debug_log_filter_hint"), m_logFilter);
+        col.Row(I18n::Tr("debug_log_category"));
         std::vector<const char*> cats;
-        cats.push_back("All");
-        for (int i = 0; i < static_cast<int>(LogCat::Count); ++i) cats.push_back(LogCatName(static_cast<LogCat>(i)));
+        cats.push_back(I18n::Tr("debug_log_all"));
+        for (int i = 0; i < static_cast<int>(LogCat::Count); ++i) cats.push_back(I18n::Tr(LogCatName(static_cast<LogCat>(i))));
         int sel = m_logCat + 1;
         if (PluginUi::Combo("##logCat", sel, cats.data(), static_cast<int>(cats.size()))) m_logCat = sel - 1;
     }
     const std::vector<LogLine> lines = m_log.Snapshot();
     const uint64_t now = NowMs();
-    std::string copy;
+    std::string copy;   // the lines shown, in English (for bug reports, like the log file)
     const float h = ImGui::GetTextLineHeightWithSpacing() * 12.0f;
     if (ImGui::BeginChild("##logLines", ImVec2(0.0f, h), ImGuiChildFlags_Borders)) {
         for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
             if (m_logCat >= 0 && static_cast<int>(it->cat) != m_logCat) continue;
-            if (!m_logFilter.empty() && !ContainsCI(it->text, m_logFilter)) continue;
+            const std::string text = ui::Text(it->text);
+            const std::string english = Render(it->text, &EnglishText);
+            // The filter finds the line in the program language or in its English words.
+            if (!MatchesLogFilter(text, english, m_logFilter)) continue;
             const double ago = static_cast<double>(now >= it->timeMs ? now - it->timeMs : 0) / 1000.0;
-            char buf[1200];
-            std::snprintf(buf, sizeof(buf), "%7.1fs  %-7s %s", ago, LogCatName(it->cat), it->text.c_str());
-            ImGui::TextUnformatted(buf);
-            copy += buf;
+            const char* catKey = LogCatName(it->cat);
+            ImGui::TextUnformatted(LogLineText(ago, I18n::Tr(catKey), text).c_str());
+            const char* catEnglish = EnglishText(catKey);
+            char prefix[64];
+            std::snprintf(prefix, sizeof(prefix), "%7.1fs  %-7s ", ago, catEnglish ? catEnglish : catKey);
+            copy += prefix;
+            copy += english;
             copy += '\n';
         }
     }
     ImGui::EndChild();
-    if (PluginUi::SubtleButton("Copy###logCopy")) ImGui::SetClipboardText(copy.c_str());
-    Tip("Copies the lines shown (newest first).");
+    if (PluginUi::SubtleButton(I18n::TrId("debug_log_copy"))) ImGui::SetClipboardText(copy.c_str());
+    Tip(I18n::Tr("debug_log_copy_tip"));
     ImGui::SameLine();
-    if (PluginUi::SubtleButton("Clear###logClear")) m_log.Clear();
+    if (PluginUi::SubtleButton(I18n::TrId("debug_log_clear"))) m_log.Clear();
     ImGui::SameLine();
-    changed |= Check("Also write to a file", "logFile", &d.logToFile, "logs/followbot-<date>.log in the plugin folder.");
+    changed |= Check(I18n::Tr("debug_log_file"), "logFile", &d.logToFile, I18n::Tr("debug_log_file_tip"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Live skills / buffs --------------------------------------------------
     PluginUi::BeginCard("##live");
-    Heading(ICON_FA_WAND_MAGIC_SPARKLES, "Live skills and buffs",
-            "The character's skills (name, bar slot, ready) and current buffs: copy names into skill rules.");
-    Check("Read them now", "liveSkills", &m_showSkillsLive, "Reads skills and buffs a few times a second while this is on.");
+    Heading(ICON_FA_WAND_MAGIC_SPARKLES, I18n::Tr("debug_live"), I18n::Tr("debug_live_help"));
+    Check(I18n::Tr("debug_live_read"), "liveSkills", &m_showSkillsLive, I18n::Tr("debug_live_read_tip"));
     if (m_showSkillsLive && v) {
         if (ImGui::BeginTable("##skills", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_PadOuterX)) {
-            ImGui::TableSetupColumn("Skill", ImGuiTableColumnFlags_WidthStretch, 3.0f);
-            ImGui::TableSetupColumn("Bar slot", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-            ImGui::TableSetupColumn("Ready", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(I18n::TrId("skills_skill"), ImGuiTableColumnFlags_WidthStretch, 3.0f);
+            ImGui::TableSetupColumn(I18n::TrId("skills_col_bar_slot"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(I18n::TrId("skills_col_ready"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
             ImGui::TableHeadersRow();
             for (const auto& s : v->skills) {
                 ImGui::TableNextRow();
@@ -216,7 +236,7 @@ void FollowBotPlugin::DrawTabDebug() {
                 if (s.onBar) ImGui::Text("%d", s.barSlot + 1);
                 else ImGui::TextDisabled("-");
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted(s.canBeUsed ? "yes" : "no");
+                ImGui::TextUnformatted(ui::YesNo(s.canBeUsed));
             }
             ImGui::EndTable();
         }
@@ -227,60 +247,75 @@ void FollowBotPlugin::DrawTabDebug() {
             if (b.charges > 1) buffs += " x" + std::to_string(b.charges);
         }
         ImGui::Spacing();
-        Hint(buffs.empty() ? "Your buffs: none" : ("Your buffs: " + buffs).c_str());
+        Hint(buffs.empty() ? I18n::Tr("debug_live_buffs_none") : I18n::TrF("debug_live_buffs", {{"buffs", buffs}}).c_str());
         std::string lbuffs;
         for (const auto& b : v->leaderBuffs) {
             if (!lbuffs.empty()) lbuffs += ", ";
             lbuffs += b.name;
         }
-        Hint(lbuffs.empty() ? "Leader buffs: none (or not visible)" : ("Leader buffs: " + lbuffs).c_str());
+        Hint(lbuffs.empty() ? I18n::Tr("debug_live_leader_buffs_none")
+                            : I18n::TrF("debug_live_leader_buffs", {{"buffs", lbuffs}}).c_str());
     }
     PluginUi::EndCard();
     ImGui::Spacing();
 
-    if (PluginUi::BeginDiagnostics("What the bot reads from the game right now.", "debugDiag")) {
+    if (PluginUi::BeginDiagnostics(I18n::Tr("debug_diag_tip"), "debugDiag")) {
         if (!v) {
-            Hint("No data yet (the bot reads the game while the plugin is enabled).");
+            Hint(I18n::Tr("common_no_data_enabled"));
         } else {
-            char line[256];
-            std::snprintf(line, sizeof(line), "Attached: %s   |   in game: %s   |   game in front: %s   |   area: %s (#%u)%s%s%s",
-                          v->attached ? "yes" : "no", v->inGame ? "yes" : "no", v->foreground ? "yes" : "no",
-                          v->areaId.empty() ? "-" : v->areaId.c_str(), v->areaCounter, v->isTown ? " town" : "",
-                          v->isHideout ? " hideout" : "", v->isMap ? " map" : "");
-            Hint(line);
-            std::snprintf(line, sizeof(line), "Character: %s   |   profile: %s%s   |   life %.0f %%   |   grid (%.0f, %.0f)",
-                          v->characterName.empty() ? "-" : v->characterName.c_str(), v->profileName.c_str(),
-                          v->profileAuto ? " (auto)" : "", v->hpPct, v->selfGrid.x, v->selfGrid.y);
-            Hint(line);
-            std::snprintf(line, sizeof(line), "Monsters: %d   |   ground items: %d   |   objects: %d   |   backpack: %s, %d / 60 cells",
-                          v->monsters, v->groundItems, static_cast<int>(v->interactables.size()),
-                          v->inventoryValid ? "read" : "not read", v->usedCells);
-            Hint(line);
+            std::string area = I18n::TrF("debug_diag_area", {{"area", v->areaId.empty() ? std::string("-") : v->areaId},
+                                                              {"counter", Num("%u", v->areaCounter)}});
+            if (v->isTown) area += std::string(" ") + I18n::Tr("debug_area_town");
+            if (v->isHideout) area += std::string(" ") + I18n::Tr("debug_area_hideout");
+            if (v->isMap) area += std::string(" ") + I18n::Tr("debug_area_map");
+            Hint(ui::Join({I18n::TrF("debug_diag_attached", {{"value", ui::YesNo(v->attached)}}),
+                           I18n::TrF("debug_diag_in_game", {{"value", ui::YesNo(v->inGame)}}),
+                           I18n::TrF("debug_diag_front", {{"value", ui::YesNo(v->foreground)}}), area})
+                     .c_str());
+            const std::string profile = ui::ProfileName(v->profileName);
+            Hint(ui::Join({I18n::TrF("debug_diag_character",
+                                     {{"name", v->characterName.empty() ? std::string("-") : v->characterName}}),
+                           v->profileAuto ? I18n::TrF("debug_diag_profile_auto", {{"name", profile}})
+                                          : I18n::TrF("debug_diag_profile", {{"name", profile}}),
+                           I18n::TrF("debug_diag_life", {{"value", Num("%.0f", v->hpPct)}}),
+                           I18n::TrF("debug_diag_grid", {{"x", Num("%.0f", v->selfGrid.x)}, {"y", Num("%.0f", v->selfGrid.y)}})})
+                     .c_str());
+            Hint(ui::Join({I18n::TrF("debug_diag_monsters", {{"count", Num("%d", v->monsters)}}),
+                           I18n::TrF("debug_diag_ground", {{"count", Num("%d", v->groundItems)}}),
+                           I18n::TrF("debug_diag_objects", {{"count", Num("%d", static_cast<int>(v->interactables.size()))}}),
+                           I18n::TrF("debug_diag_backpack", {{"state", v->inventoryValid ? I18n::Tr("debug_backpack_read")
+                                                                                         : I18n::Tr("debug_backpack_not_read")},
+                                                             {"used", Num("%d", v->usedCells)}})})
+                     .c_str());
             // Asked of the host directly (cheap capability checks), not of the world snapshot.
-            std::snprintf(line, sizeof(line), "Host features: UI names %s, UI search %s, stash tabs %s, stash objects %s",
-                          ctx()->Ui.HasControlNames() ? "yes" : "no (365+)", ctx()->Ui.HasFindElements() ? "yes" : "no (365+)",
-                          ctx()->Game.HasStashTabs() ? "yes" : "no (365+)", ctx()->Game.HasStashObjects() ? "yes" : "no (365+)");
-            Hint(line);
+            const auto has = [](bool yes) { return yes ? I18n::Tr("common_yes") : I18n::Tr("debug_no_365"); };
+            Hint(I18n::TrF("debug_diag_host", {{"names", has(ctx()->Ui.HasControlNames())},
+                                               {"search", has(ctx()->Ui.HasFindElements())},
+                                               {"tabs", has(ctx()->Game.HasStashTabs())},
+                                               {"objects", has(ctx()->Game.HasStashObjects())}})
+                     .c_str());
             if (!v->interactables.empty() &&
                 ImGui::BeginTable("##objs", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_PadOuterX)) {
-                ImGui::TableSetupColumn("Kind", ImGuiTableColumnFlags_WidthStretch, 2.0f);
-                ImGui::TableSetupColumn("Distance", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-                ImGui::TableSetupColumn("Portal type", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-                ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthStretch, 1.5f);
+                ImGui::TableSetupColumn(I18n::TrId("skills_col_kind"), ImGuiTableColumnFlags_WidthStretch, 2.0f);
+                ImGui::TableSetupColumn(I18n::TrId("debug_col_distance"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
+                ImGui::TableSetupColumn(I18n::TrId("debug_col_portal_type"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
+                ImGui::TableSetupColumn(I18n::TrId("debug_col_state"), ImGuiTableColumnFlags_WidthStretch, 1.5f);
                 ImGui::TableHeadersRow();
                 int shown = 0;
                 for (const auto& it : v->interactables) {
                     if (++shown > 24) break;
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted(InteractKindName(it.kind));
+                    ImGui::TextUnformatted(I18n::Tr(InteractKindName(it.kind)));
                     ImGui::TableNextColumn();
                     ImGui::Text("%.0f", Dist(it.grid, v->selfGrid));
                     ImGui::TableNextColumn();
                     if (it.portalType >= 0) ImGui::Text("%d", it.portalType);
                     else ImGui::TextDisabled("-");
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted(it.visibleNow ? (it.targetable ? "visible" : "visible, inactive") : "remembered");
+                    ImGui::TextUnformatted(it.visibleNow ? (it.targetable ? I18n::Tr("debug_state_visible")
+                                                                          : I18n::Tr("debug_state_inactive"))
+                                                         : I18n::Tr("debug_state_remembered"));
                 }
                 ImGui::EndTable();
             }

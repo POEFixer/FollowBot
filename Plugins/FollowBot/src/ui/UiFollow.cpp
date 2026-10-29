@@ -18,155 +18,161 @@ void FollowBotPlugin::DrawTabFollow() {
     Profile& p = EditProfile();
     FollowSettings& f = p.follow;
     bool changed = false;
+    const char* cells = I18n::Key("unit_cells");
+    const char* ms = I18n::Key("unit_ms");
+    const char* px = I18n::Key("unit_px");
 
     // --- Following ---------------------------------------------------------
     PluginUi::BeginCard("##following");
-    Heading(ICON_FA_PERSON_WALKING, "Following",
-            "Distances are in grid cells (one cell is about a tenth of a character's height).\n"
-            "The bot starts walking when the leader is farther than the follow distance and stops\n"
-            "once it is closer than the stop distance, so small moves of the leader do not cause jitter.");
+    Heading(ICON_FA_PERSON_WALKING, I18n::Tr("follow_following"), I18n::Tr("follow_following_help"));
     {
-        const LabelColumn col({"Follow distance", "Stop distance", "Predict ahead", "Formation slot", "Slot spacing",
-                               "Wait after zoning", "Keep last goal"});
-        changed |= ui::FloatRow(col, "Follow distance", "##followDist", &f.followDistance, 6.f, 150.f, "%.0f cells",
-                                "Start walking when the leader is farther than this.");
-        changed |= ui::FloatRow(col, "Stop distance", "##stopDist", &f.stopDistance, 2.f, 140.f, "%.0f cells",
-                                "Stop walking once closer than this (always below the follow distance).");
+        const LabelColumn col({I18n::Tr("follow_distance"), I18n::Tr("follow_stop_distance"), I18n::Tr("follow_predict_ahead"),
+                               I18n::Tr("follow_formation_slot"), I18n::Tr("follow_slot_spacing"),
+                               I18n::Tr("follow_reacquire"), I18n::Tr("follow_lost_hold")});
+        changed |= ui::FloatRow(col, I18n::Tr("follow_distance"), "##followDist", &f.followDistance, 6.f, 150.f, cells, "%.0f",
+                                I18n::Tr("follow_distance_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("follow_stop_distance"), "##stopDist", &f.stopDistance, 2.f, 140.f, cells, "%.0f",
+                                I18n::Tr("follow_stop_distance_tip"));
         ImGui::BeginDisabled(!f.predict);
-        changed |= ui::IntRow(col, "Predict ahead", "##predictMs", &f.predictMs, 0, 2000, "%d ms",
-                              "Aim where the leader will be this far in the future (from his speed),\n"
-                              "kept on walkable ground.");
+        changed |= ui::IntRow(col, I18n::Tr("follow_predict_ahead"), "##predictMs", &f.predictMs, 0, 2000, ms,
+                              I18n::Tr("follow_predict_ahead_tip"));
         ImGui::EndDisabled();
-        changed |= ui::IntRow(col, "Formation slot", "##formSlot", &f.formationSlot, 0, 5, "%d",
-                              "0 = straight at the leader. 1..5 give several followers their own place behind him\n"
-                              "(each follower a different slot).");
+        changed |= ui::IntRow(col, I18n::Tr("follow_formation_slot"), "##formSlot", &f.formationSlot, 0, 5, nullptr,
+                              I18n::Tr("follow_formation_slot_tip"));
         ImGui::BeginDisabled(f.formationSlot == 0);
-        changed |= ui::FloatRow(col, "Slot spacing", "##formSpacing", &f.formationSpacing, 2.f, 30.f, "%.0f cells",
-                                "Distance between formation places.");
+        changed |= ui::FloatRow(col, I18n::Tr("follow_slot_spacing"), "##formSpacing", &f.formationSpacing, 2.f, 30.f, cells,
+                                "%.0f", I18n::Tr("follow_slot_spacing_tip"));
         ImGui::EndDisabled();
-        changed |= ui::IntRow(col, "Wait after zoning", "##reacquire", &f.reacquireMs, 1000, 60000, "%d ms",
-                              "After you change area, wait this long for the leader to appear before reporting\n"
-                              "\"leader not in this area\".");
-        changed |= ui::IntRow(col, "Keep last goal", "##lostHold", &f.lostHoldMs, 0, 10000, "%d ms",
-                              "When the leader just left sight, keep walking to where he was for this long.");
+        changed |= ui::IntRow(col, I18n::Tr("follow_reacquire"), "##reacquire", &f.reacquireMs, 1000, 60000, ms,
+                              I18n::Tr("follow_reacquire_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_lost_hold"), "##lostHold", &f.lostHoldMs, 0, 10000, ms,
+                              I18n::Tr("follow_lost_hold_tip"));
     }
-    changed |= Check("Predict the leader's movement", "predict", &f.predict, "Aims ahead of a moving leader.");
-    changed |= Check("Aim at the end of his route while he moves", "followDest", &f.followDestination,
-                     "Uses the leader's own route (where he clicked) instead of his position.");
-    changed |= Check("Follow in town and hideout", "followTown", &f.followInTownHideout,
-                     "Off: the bot stands still in towns and hideouts.");
+    changed |= Check(I18n::Tr("follow_predict"), "predict", &f.predict, I18n::Tr("follow_predict_tip"));
+    changed |= Check(I18n::Tr("follow_destination"), "followDest", &f.followDestination, I18n::Tr("follow_destination_tip"));
+    changed |= Check(I18n::Tr("follow_in_town"), "followTown", &f.followInTownHideout, I18n::Tr("follow_in_town_tip"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Movement ------------------------------------------------------------
     PluginUi::BeginCard("##movement");
-    Heading(ICON_FA_ROUTE, "Steering",
-            "The bot holds the Move key and keeps the cursor a fixed distance from the character in the\n"
-            "walking direction (never on the skill bar or flask belt).");
+    Heading(ICON_FA_ROUTE, I18n::Tr("follow_steering"), I18n::Tr("follow_steering_help"));
     {
-        const LabelColumn col({"Look ahead", "Cursor distance", "Re-aim every", "Re-aim when moved"});
-        changed |= ui::FloatRow(col, "Look ahead", "##lookahead", &f.lookaheadCells, 4.f, 40.f, "%.0f cells",
-                                "How far along the path the cursor points (in sight of the character).");
-        changed |= ui::IntRow(col, "Cursor distance", "##cursorDist", &f.cursorDistancePx, 60, 600, "%d px",
-                              "Distance of the cursor from the character on screen.");
-        changed |= ui::IntRow(col, "Re-aim every", "##reaimMs", &f.reaimMs, 16, 500, "%d ms", "Cursor update interval while walking.");
-        changed |= ui::IntRow(col, "Re-aim when moved", "##reaimPx", &f.reaimPx, 1, 60, "%d px",
-                              "The cursor is moved at once when its target shifts more than this.");
+        const LabelColumn col({I18n::Tr("follow_look_ahead"), I18n::Tr("follow_cursor_distance"), I18n::Tr("follow_reaim_every"),
+                               I18n::Tr("follow_reaim_moved")});
+        changed |= ui::FloatRow(col, I18n::Tr("follow_look_ahead"), "##lookahead", &f.lookaheadCells, 4.f, 40.f, cells, "%.0f",
+                                I18n::Tr("follow_look_ahead_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_cursor_distance"), "##cursorDist", &f.cursorDistancePx, 60, 600, px,
+                              I18n::Tr("follow_cursor_distance_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_reaim_every"), "##reaimMs", &f.reaimMs, 16, 500, ms,
+                              I18n::Tr("follow_reaim_every_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_reaim_moved"), "##reaimPx", &f.reaimPx, 1, 60, px,
+                              I18n::Tr("follow_reaim_moved_tip"));
     }
-    changed |= Check("Activation click after focus / zoning", "activation", &f.activationClick,
-                     "The game ignores a held key until a real click lands after it regains focus or after a\n"
-                     "zone change: one click just below the character first.");
+    changed |= Check(I18n::Tr("follow_activation"), "activation", &f.activationClick, I18n::Tr("follow_activation_tip"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Sprint ----------------------------------------------------------------
     PluginUi::BeginCard("##sprint");
-    Heading(ICON_FA_PERSON_RUNNING, "Sprint", "Holds the Dodge / Sprint key on long, straight stretches without enemies.");
-    changed |= Check("Sprint to catch up", "sprint", &f.sprint, "Needs the Dodge / Sprint key (General tab).");
+    Heading(ICON_FA_PERSON_RUNNING, I18n::Tr("follow_sprint"), I18n::Tr("follow_sprint_help"));
+    changed |= Check(I18n::Tr("follow_sprint_on"), "sprint", &f.sprint, I18n::Tr("follow_sprint_on_tip"));
     ImGui::BeginDisabled(!f.sprint || f.sprintKey == 0);
     {
-        const LabelColumn col({"Farther than", "No enemy within", "Hold at most", "Pause between"});
-        changed |= ui::FloatRow(col, "Farther than", "##sprintDist", &f.sprintDistance, 10.f, 200.f, "%.0f cells",
-                                "Sprint while the goal is farther than this; stop below 60 % of it.");
-        changed |= ui::FloatRow(col, "No enemy within", "##sprintEnemy", &f.sprintNoEnemyRadius, 0.f, 120.f, "%.0f cells",
-                                "Never sprint with an enemy this close.");
-        changed |= ui::IntRow(col, "Hold at most", "##sprintHold", &f.sprintMaxHoldMs, 500, 60000, "%d ms", "Longest single sprint.");
-        changed |= ui::IntRow(col, "Pause between", "##sprintCd", &f.sprintCooldownMs, 0, 30000, "%d ms", "Rest between two sprints.");
+        const LabelColumn col({I18n::Tr("follow_sprint_farther"), I18n::Tr("follow_sprint_no_enemy"),
+                               I18n::Tr("follow_sprint_hold"), I18n::Tr("follow_sprint_pause")});
+        changed |= ui::FloatRow(col, I18n::Tr("follow_sprint_farther"), "##sprintDist", &f.sprintDistance, 10.f, 200.f, cells,
+                                "%.0f", I18n::Tr("follow_sprint_farther_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("follow_sprint_no_enemy"), "##sprintEnemy", &f.sprintNoEnemyRadius, 0.f, 120.f,
+                                cells, "%.0f", I18n::Tr("follow_sprint_no_enemy_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_sprint_hold"), "##sprintHold", &f.sprintMaxHoldMs, 500, 60000, ms,
+                              I18n::Tr("follow_sprint_hold_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_sprint_pause"), "##sprintCd", &f.sprintCooldownMs, 0, 30000, ms,
+                              I18n::Tr("follow_sprint_pause_tip"));
     }
     ImGui::EndDisabled();
-    if (f.sprint && f.sprintKey == 0) Hint("Set the Dodge / Sprint key in the General tab to sprint.");
+    if (f.sprint && f.sprintKey == 0) Hint(I18n::Tr("follow_sprint_no_key"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Navigation ------------------------------------------------------------
     PluginUi::BeginCard("##nav");
-    Heading(ICON_FA_DIAGRAM_PROJECT, "Path finding",
-            "Paths are planned on the game's walkable grid and keep some distance from walls when they can.");
+    Heading(ICON_FA_DIAGRAM_PROJECT, I18n::Tr("follow_path_finding"), I18n::Tr("follow_path_finding_help"));
     {
-        const LabelColumn col({"Plan again every", "Keep off walls", "Search limit", "Snap radius"});
-        changed |= ui::IntRow(col, "Plan again every", "##replan", &f.replanMs, 200, 10000, "%d ms",
-                              "Also plans again when the leader moved or the character left the path.");
-        changed |= ui::FloatRow(col, "Keep off walls", "##wallPen", &f.wallPenalty, 0.f, 5.f, "%.1f",
-                                "0 = the shortest path (hugs walls); higher keeps more distance from walls.");
-        changed |= ui::IntRow(col, "Search limit", "##astarIter", &f.astarMaxIterations, 10000, 4000000, "%d",
-                              "Upper bound for one path search (cells examined).");
-        changed |= ui::IntRow(col, "Snap radius", "##snap", &f.snapRadius, 1, 100, "%d cells",
-                              "A goal standing on an unwalkable spot moves to the nearest walkable cell within this.");
+        const LabelColumn col({I18n::Tr("follow_replan"), I18n::Tr("follow_wall_penalty"), I18n::Tr("follow_search_limit"),
+                               I18n::Tr("follow_snap_radius")});
+        changed |= ui::IntRow(col, I18n::Tr("follow_replan"), "##replan", &f.replanMs, 200, 10000, ms,
+                              I18n::Tr("follow_replan_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("follow_wall_penalty"), "##wallPen", &f.wallPenalty, 0.f, 5.f, nullptr, "%.1f",
+                                I18n::Tr("follow_wall_penalty_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_search_limit"), "##astarIter", &f.astarMaxIterations, 10000, 4000000,
+                              nullptr, I18n::Tr("follow_search_limit_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_snap_radius"), "##snap", &f.snapRadius, 1, 100, cells,
+                              I18n::Tr("follow_snap_radius_tip"));
     }
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Stuck ------------------------------------------------------------------
     PluginUi::BeginCard("##stuck");
-    Heading(ICON_FA_ARROWS_ROTATE, "Getting unstuck",
-            "Stuck = the character hardly moved for a moment, or made no progress toward the goal.\n"
-            "Then, in order: plan around the spot, side-step, open a door, walk back a little, dodge,\n"
-            "try escape directions, and finally give up the goal for a while.");
+    Heading(ICON_FA_ARROWS_ROTATE, I18n::Tr("follow_unstuck"), I18n::Tr("follow_unstuck_help"));
     {
         StuckSettings& k = f.stuck;
-        const LabelColumn col({"Moved less than", "Within", "No progress for", "Calm again after", "Block radius",
-                               "Block for", "Side-step", "Door search", "Walk back at least", "After zoning wait",
-                               "Retry following after"});
-        changed |= ui::FloatRow(col, "Moved less than", "##stMin", &k.minDisplacement, 0.2f, 10.f, "%.1f cells", "Stuck threshold.");
-        changed |= ui::IntRow(col, "Within", "##stWin", &k.windowMs, 300, 10000, "%d ms", "Time window of the threshold above.");
-        changed |= ui::IntRow(col, "No progress for", "##stNoProg", &k.noProgressMs, 500, 20000, "%d ms",
-                              "No progress toward the goal for this long also counts as stuck.");
-        changed |= ui::IntRow(col, "Calm again after", "##stReset", &k.ladderResetMs, 500, 30000, "%d ms",
-                              "Walking freely this long starts the recovery steps from the first one again.");
-        changed |= ui::IntRow(col, "Block radius", "##stBlockR", &k.blockRadius, 0, 8, "%d cells",
-                              "The spot ahead is avoided in this radius when planning around it.");
-        changed |= ui::IntRow(col, "Block for", "##stBlockMs", &k.blockMs, 1000, 120000, "%d ms", "How long that spot stays avoided.");
-        changed |= ui::IntRow(col, "Side-step", "##stSide", &k.sideStepMs, 100, 3000, "%d ms", "Length of a side-step.");
-        changed |= ui::FloatRow(col, "Door search", "##stDoor", &k.doorSearchCells, 2.f, 40.f, "%.0f cells",
-                                "A closed door this close to the path is clicked.");
-        changed |= ui::FloatRow(col, "Walk back at least", "##stBack", &k.backtrackMinCells, 2.f, 60.f, "%.0f cells",
-                                "Distance of the earlier position the bot walks back to.");
-        changed |= ui::IntRow(col, "After zoning wait", "##stIgn", &k.ignitionTimeoutMs, 0, 30000, "%d ms",
-                              "After a zone change the game may keep the character still for a while: stuck checks wait\n"
-                              "until it moved once or this long.");
-        changed |= ui::IntRow(col, "Retry following after", "##stRetry", &k.followRetryMs, 500, 30000, "%d ms",
-                              "When every step failed, following pauses this long and tries again.");
+        const LabelColumn col({I18n::Tr("follow_stuck_moved_less"), I18n::Tr("follow_stuck_within"),
+                               I18n::Tr("follow_stuck_no_progress"), I18n::Tr("follow_stuck_calm"),
+                               I18n::Tr("follow_stuck_block_radius"), I18n::Tr("follow_stuck_block_for"),
+                               I18n::Tr("follow_stuck_side_step"), I18n::Tr("follow_stuck_door"),
+                               I18n::Tr("follow_stuck_back"), I18n::Tr("follow_stuck_ignition"),
+                               I18n::Tr("follow_stuck_retry")});
+        changed |= ui::FloatRow(col, I18n::Tr("follow_stuck_moved_less"), "##stMin", &k.minDisplacement, 0.2f, 10.f, cells,
+                                "%.1f", I18n::Tr("follow_stuck_moved_less_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_within"), "##stWin", &k.windowMs, 300, 10000, ms,
+                              I18n::Tr("follow_stuck_within_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_no_progress"), "##stNoProg", &k.noProgressMs, 500, 20000, ms,
+                              I18n::Tr("follow_stuck_no_progress_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_calm"), "##stReset", &k.ladderResetMs, 500, 30000, ms,
+                              I18n::Tr("follow_stuck_calm_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_block_radius"), "##stBlockR", &k.blockRadius, 0, 8, cells,
+                              I18n::Tr("follow_stuck_block_radius_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_block_for"), "##stBlockMs", &k.blockMs, 1000, 120000, ms,
+                              I18n::Tr("follow_stuck_block_for_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_side_step"), "##stSide", &k.sideStepMs, 100, 3000, ms,
+                              I18n::Tr("follow_stuck_side_step_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("follow_stuck_door"), "##stDoor", &k.doorSearchCells, 2.f, 40.f, cells, "%.0f",
+                                I18n::Tr("follow_stuck_door_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("follow_stuck_back"), "##stBack", &k.backtrackMinCells, 2.f, 60.f, cells, "%.0f",
+                                I18n::Tr("follow_stuck_back_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_ignition"), "##stIgn", &k.ignitionTimeoutMs, 0, 30000, ms,
+                              I18n::Tr("follow_stuck_ignition_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("follow_stuck_retry"), "##stRetry", &k.followRetryMs, 500, 30000, ms,
+                              I18n::Tr("follow_stuck_retry_tip"));
     }
     PluginUi::EndCard();
     ImGui::Spacing();
 
-    if (PluginUi::BeginDiagnostics("What the follow logic sees right now.", "followDiag")) {
+    if (PluginUi::BeginDiagnostics(I18n::Tr("follow_diag_tip"), "followDiag")) {
         const BotView* v = m_uiView.get();
         if (!v) {
-            Hint("No data yet.");
+            Hint(I18n::Tr("common_no_data"));
         } else {
-            char line[256];
-            std::snprintf(line, sizeof(line), "Mode: %s   |   moving: %s%s   |   plan: %s (%d points)", v->mode.c_str(),
-                          v->moving ? "yes" : "no", v->sprinting ? " (sprint)" : "", v->planStatus.c_str(),
-                          static_cast<int>(v->path.size()));
-            Hint(line);
-            std::snprintf(line, sizeof(line), "Leader: %s, %s, %.0f cells, speed %.1f cells/s, route %d nodes",
-                          v->leaderName.empty() ? "-" : v->leaderName.c_str(), v->leaderVisible ? "visible" : "not visible",
-                          v->leaderDistance, v->leaderSpeed, static_cast<int>(v->leaderRoute.size()));
-            Hint(line);
-            std::snprintf(line, sizeof(line), "Stuck episodes: %d   |   current step: %s   |   avoided spots: %d",
-                          v->stuckEpisodes, v->stuckStep.c_str(), static_cast<int>(v->blocks.size()));
-            Hint(line);
+            const std::string moving =
+                v->sprinting ? I18n::TrF("follow_diag_moving_sprint", {{"moving", ui::YesNo(v->moving)}})
+                             : I18n::TrF("follow_diag_moving", {{"moving", ui::YesNo(v->moving)}});
+            Hint(ui::Join({I18n::TrF("follow_diag_mode", {{"mode", ui::KeyText(v->mode)}}), moving,
+                           I18n::TrF("follow_diag_plan", {{"plan", ui::KeyText(v->planStatus)},
+                                                          {"points", Num("%d", static_cast<int>(v->path.size()))}})})
+                     .c_str());
+            Hint(I18n::TrF("follow_diag_leader",
+                           {{"name", v->leaderName.empty() ? std::string(I18n::Tr("common_none")) : v->leaderName},
+                            {"state", v->leaderVisible ? I18n::Tr("follow_diag_visible") : I18n::Tr("follow_diag_not_visible")},
+                            {"cells", Num("%.0f", v->leaderDistance)},
+                            {"speed", Num("%.1f", v->leaderSpeed)},
+                            {"nodes", Num("%d", static_cast<int>(v->leaderRoute.size()))}})
+                     .c_str());
+            Hint(ui::Join({I18n::TrF("follow_diag_stuck", {{"count", Num("%d", v->stuckEpisodes)}}),
+                           I18n::TrF("follow_diag_step", {{"step", ui::KeyText(v->stuckStep)}}),
+                           I18n::TrF("follow_diag_avoided", {{"count", Num("%d", static_cast<int>(v->blocks.size()))}})})
+                     .c_str());
         }
         PluginUi::EndDiagnostics();
     }

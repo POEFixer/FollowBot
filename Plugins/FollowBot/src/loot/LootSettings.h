@@ -22,24 +22,26 @@ struct LootCategoryRule {
 
 enum class RefCurrency : uint8_t { Chaos = 0, Divine, Exalted, Count };
 
+// The currency's short unit (a key: "c", "div", "ex" in English).
 inline const char* RefCurrencyShort(RefCurrency c) {
     switch (c) {
-        case RefCurrency::Chaos:   return "c";
-        case RefCurrency::Divine:  return "div";
-        case RefCurrency::Exalted: return "ex";
+        case RefCurrency::Chaos:   return Key("currency_short_chaos");
+        case RefCurrency::Divine:  return Key("currency_short_divine");
+        case RefCurrency::Exalted: return Key("currency_short_exalted");
         case RefCurrency::Count:   break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
+// The currency's name (a key: the game's name of the orb).
 inline const char* RefCurrencyName(RefCurrency c) {
     switch (c) {
-        case RefCurrency::Chaos:   return "Chaos Orb";
-        case RefCurrency::Divine:  return "Divine Orb";
-        case RefCurrency::Exalted: return "Exalted Orb";
+        case RefCurrency::Chaos:   return Key("currency_chaos");
+        case RefCurrency::Divine:  return Key("currency_divine");
+        case RefCurrency::Exalted: return Key("currency_exalted");
         case RefCurrency::Count:   break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 using LootRules = std::array<LootCategoryRule, kItemCategoryCount>;

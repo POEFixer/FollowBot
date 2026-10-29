@@ -37,6 +37,12 @@
 #include <string>
 #include <thread>
 
+namespace fb {
+// The embedded English text of a key (lang_en.generated.h; nullptr when there is
+// none): the decision log's file and the host log (ctx()->Log) stay English.
+const char* EnglishText(const char* key);
+}  // namespace fb
+
 class FollowBotPlugin : public PluginSDK::Plugin {
 public:
     FollowBotPlugin();
@@ -154,7 +160,7 @@ private:
     mutable std::mutex    m_viewMu;
     std::shared_ptr<const fb::BotView> m_view;
     std::mutex            m_msgMu;
-    std::string           m_stopMessage;   // why the worker stopped the bot (shown once)
+    fb::LocText           m_stopMessage;   // why the worker stopped the bot (shown once)
     fb::BotLog            m_log;
 
     // --- worker-only state ---------------------------------------------------

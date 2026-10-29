@@ -29,6 +29,7 @@ enum class GateReason : uint8_t {
     Count
 };
 
+// The reason's key (lang/en.json); "" for None.
 const char* GateReasonText(GateReason r);
 
 struct GateInputs {

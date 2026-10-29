@@ -68,13 +68,13 @@ bool NameEquals(std::string_view a, std::string_view b) {
 
 const char* RarityName(int rarity) {
     switch (rarity) {
-        case 0: return "normal";
-        case 1: return "magic";
-        case 2: return "rare";
-        case 3: return "unique";
+        case 0: return Key("rarity_lower_normal");
+        case 1: return Key("rarity_lower_magic");
+        case 2: return Key("rarity_lower_rare");
+        case 3: return Key("rarity_lower_unique");
         default: break;
     }
-    return "unknown";
+    return Key("rarity_lower_unknown");
 }
 
 // ===========================================================================
@@ -176,13 +176,6 @@ TargetPick SelectTarget(const std::vector<Monster>& monsters, const TargetQuery&
 // Rule conditions (SkillConditions.h)
 // ===========================================================================
 
-void Reason::Set(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    const int n = std::vsnprintf(text, sizeof(text), fmt, args);
-    va_end(args);
-    if (n < 0) text[0] = 0;
-}
 
 // --- motion ------------------------------------------------------------------
 
@@ -237,14 +230,14 @@ const FlaskInfo* FindBeltSlot(const std::vector<FlaskInfo>& belt, int beltIndex)
 
 const char* BeltSlotName(int beltIndex) {
     switch (beltIndex) {
-        case 0: return "Flask 1";
-        case 1: return "Flask 2";
-        case 2: return "Charm 1";
-        case 3: return "Charm 2";
-        case 4: return "Charm 3";
+        case 0: return Key("belt_flask_1");
+        case 1: return Key("belt_flask_2");
+        case 2: return Key("belt_charm_1");
+        case 3: return Key("belt_charm_2");
+        case 4: return Key("belt_charm_3");
         default: break;
     }
-    return "not checked";
+    return Key("belt_not_checked");
 }
 
 // --- aim -----------------------------------------------------------------------
@@ -352,11 +345,11 @@ bool PointAlongPath(const std::vector<Vec2>& path, const Vec2& from, float cells
 
 bool CheckKey(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.key <= 0) {
-        why.Set("no key bound");
+        why.Set(Tr("skill_why_no_key"));
         return false;
     }
     if (f.IsReserved(r.key)) {
-        why.Set("the key is one of the bot's own keys (hotkey, move or sprint)");
+        why.Set(Tr("skill_why_reserved_key"));
         return false;
     }
     return true;
@@ -365,11 +358,12 @@ bool CheckKey(const SkillRule& r, const CombatFacts& f, Reason& why) {
 bool CheckCombatMode(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.kind != RuleKind::Attack) return true;
     if (f.mode == CombatMode::Passive) {
-        why.Set("attack rules are off (Passive mode)");
+        why.Set(Tr("skill_why_passive"));
         return false;
     }
     if (f.leaderDistance >= 0.f && f.leaderDistance > f.maxCombatLeaderDistance) {
-        why.Set("leader %.0f cells away (more than %.0f): following first", f.leaderDistance, f.maxCombatLeaderDistance);
+        why.Set(TrF("skill_why_leader_far", {{"distance", Num("%.0f", f.leaderDistance)},
+                                             {"max", Num("%.0f", f.maxCombatLeaderDistance)}}));
         return false;
     }
     return true;
@@ -377,11 +371,11 @@ bool CheckCombatMode(const SkillRule& r, const CombatFacts& f, Reason& why) {
 
 bool CheckCombatState(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.when == CombatWhen::InCombat && !f.inCombat) {
-        why.Set("not in combat");
+        why.Set(Tr("skill_why_not_in_combat"));
         return false;
     }
     if (r.when == CombatWhen::OutOfCombat && f.inCombat) {
-        why.Set("in combat (%d hostile%s near)", f.hostiles, f.hostiles == 1 ? "" : "s");
+        why.Set(TrF("skill_why_in_combat", {{"hostiles", Num("%d", f.hostiles)}}));
         return false;
     }
     return true;
@@ -389,11 +383,11 @@ bool CheckCombatState(const SkillRule& r, const CombatFacts& f, Reason& why) {
 
 bool CheckMoveState(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.moveState == MoveState::Moving && !f.moving) {
-        why.Set("standing still (needs moving)");
+        why.Set(Tr("skill_why_standing"));
         return false;
     }
     if (r.moveState == MoveState::Stationary && f.moving) {
-        why.Set("moving (needs standing still)");
+        why.Set(Tr("skill_why_moving"));
         return false;
     }
     return true;
@@ -401,34 +395,35 @@ bool CheckMoveState(const SkillRule& r, const CombatFacts& f, Reason& why) {
 
 bool CheckVitals(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.selfHpBelow >= 0.f) {
-        if (f.hpMax <= 0) { why.Set("life not readable"); return false; }
+        if (f.hpMax <= 0) { why.Set(Tr("skill_why_life_unreadable")); return false; }
         if (!(f.hpPct < r.selfHpBelow)) {
-            why.Set("life %.0f%% (needs below %.0f%%)", f.hpPct, r.selfHpBelow);
+            why.Set(TrF("skill_why_life", {{"value", Num("%.0f", f.hpPct)}, {"limit", Num("%.0f", r.selfHpBelow)}}));
             return false;
         }
     }
     if (r.selfEsBelow >= 0.f) {
-        if (f.esMax <= 0) { why.Set("no energy shield"); return false; }
+        if (f.esMax <= 0) { why.Set(Tr("skill_why_no_es")); return false; }
         if (!(f.esPct < r.selfEsBelow)) {
-            why.Set("energy shield %.0f%% (needs below %.0f%%)", f.esPct, r.selfEsBelow);
+            why.Set(TrF("skill_why_es", {{"value", Num("%.0f", f.esPct)}, {"limit", Num("%.0f", r.selfEsBelow)}}));
             return false;
         }
     }
     if (r.selfManaAbove >= 0.f || r.selfManaBelow >= 0.f) {
-        if (f.mpMax <= 0) { why.Set("mana not readable"); return false; }
+        if (f.mpMax <= 0) { why.Set(Tr("skill_why_mana_unreadable")); return false; }
         if (r.selfManaAbove >= 0.f && !(f.mpPct > r.selfManaAbove)) {
-            why.Set("mana %.0f%% (needs above %.0f%%)", f.mpPct, r.selfManaAbove);
+            why.Set(TrF("skill_why_mana_above", {{"value", Num("%.0f", f.mpPct)}, {"limit", Num("%.0f", r.selfManaAbove)}}));
             return false;
         }
         if (r.selfManaBelow >= 0.f && !(f.mpPct < r.selfManaBelow)) {
-            why.Set("mana %.0f%% (needs below %.0f%%)", f.mpPct, r.selfManaBelow);
+            why.Set(TrF("skill_why_mana_below", {{"value", Num("%.0f", f.mpPct)}, {"limit", Num("%.0f", r.selfManaBelow)}}));
             return false;
         }
     }
     if (r.leaderHpBelow >= 0.f) {
-        if (!f.leaderVisible) { why.Set("leader not visible"); return false; }
+        if (!f.leaderVisible) { why.Set(Tr("skill_why_leader_not_visible")); return false; }
         if (!(f.leaderHpPct < r.leaderHpBelow)) {
-            why.Set("leader life %.0f%% (needs below %.0f%%)", f.leaderHpPct, r.leaderHpBelow);
+            why.Set(TrF("skill_why_leader_life",
+                        {{"value", Num("%.0f", f.leaderHpPct)}, {"limit", Num("%.0f", r.leaderHpBelow)}}));
             return false;
         }
     }
@@ -438,15 +433,17 @@ bool CheckVitals(const SkillRule& r, const CombatFacts& f, Reason& why) {
 bool CheckLeaderDistance(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.leaderDistanceMin < 0.f && r.leaderDistanceMax < 0.f) return true;
     if (f.leaderDistance < 0.f) {
-        why.Set("leader distance unknown");
+        why.Set(Tr("skill_why_leader_distance_unknown"));
         return false;
     }
     if (r.leaderDistanceMin >= 0.f && f.leaderDistance < r.leaderDistanceMin) {
-        why.Set("leader %.0f cells away (needs at least %.0f)", f.leaderDistance, r.leaderDistanceMin);
+        why.Set(TrF("skill_why_leader_too_close",
+                    {{"distance", Num("%.0f", f.leaderDistance)}, {"limit", Num("%.0f", r.leaderDistanceMin)}}));
         return false;
     }
     if (r.leaderDistanceMax >= 0.f && f.leaderDistance > r.leaderDistanceMax) {
-        why.Set("leader %.0f cells away (needs at most %.0f)", f.leaderDistance, r.leaderDistanceMax);
+        why.Set(TrF("skill_why_leader_too_far",
+                    {{"distance", Num("%.0f", f.leaderDistance)}, {"limit", Num("%.0f", r.leaderDistanceMax)}}));
         return false;
     }
     return true;
@@ -466,10 +463,14 @@ int BuffStacks(const std::vector<BuffInfo>& buffs, std::string_view name) {
     return (std::max)(stacks, entries);
 }
 
-// At most this many bytes of a name go into a reason (a view is not
-// NUL-terminated: always print it with "%.*s" and NameLen).
+// At most this many bytes of a name go into a reason (cut on a UTF-8 boundary).
 constexpr size_t kNameMax = 48;
-int NameLen(std::string_view v) { return static_cast<int>((std::min)(v.size(), kNameMax)); }
+std::string ShortName(std::string_view v) {
+    if (v.size() <= kNameMax) return std::string(v);
+    size_t n = kNameMax;
+    while (n > 0 && (static_cast<unsigned char>(v[n]) & 0xC0) == 0x80) --n;
+    return std::string(v.substr(0, n));
+}
 
 }  // namespace
 
@@ -478,22 +479,23 @@ bool CheckBuffs(const SkillRule& r, const CombatFacts& f, Reason& why) {
     const std::string_view present = TrimView(r.buffPresent);
     if (missing.empty() && present.empty()) return true;
     if (!f.selfBuffs || !f.selfBuffsFresh) {
-        why.Set("own buffs not read yet");
+        why.Set(Tr("skill_why_buffs_not_read"));
         return false;
     }
     if (!missing.empty() && BuffStacks(*f.selfBuffs, missing) > 0) {
-        why.Set("buff '%.*s' is active", NameLen(missing), missing.data());
+        why.Set(TrF("skill_why_buff_active", {{"buff", ShortName(missing)}}));
         return false;
     }
     if (!present.empty()) {
         const int stacks = BuffStacks(*f.selfBuffs, present);
         if (stacks == 0) {
-            why.Set("buff '%.*s' is not active", NameLen(present), present.data());
+            why.Set(TrF("skill_why_buff_not_active", {{"buff", ShortName(present)}}));
             return false;
         }
         if (r.buffMinStacks > 0 && stacks < r.buffMinStacks) {
-            why.Set("buff '%.*s' has %d stack%s (needs %d)", NameLen(present), present.data(), stacks, stacks == 1 ? "" : "s",
-                    r.buffMinStacks);
+            why.Set(TrF("skill_why_buff_stacks", {{"buff", ShortName(present)},
+                                                  {"stacks", Num("%d", stacks)},
+                                                  {"min", Num("%d", r.buffMinStacks)}}));
             return false;
         }
     }
@@ -504,15 +506,15 @@ bool CheckLeaderBuff(const SkillRule& r, const CombatFacts& f, Reason& why) {
     const std::string_view missing = TrimView(r.leaderBuffMissing);
     if (missing.empty()) return true;
     if (!f.leaderVisible) {
-        why.Set("leader not visible");
+        why.Set(Tr("skill_why_leader_not_visible"));
         return false;
     }
     if (!f.leaderBuffs || !f.leaderBuffsFresh) {
-        why.Set("leader buffs not read yet");
+        why.Set(Tr("skill_why_leader_buffs_not_read"));
         return false;
     }
     if (BuffStacks(*f.leaderBuffs, missing) > 0) {
-        why.Set("leader already has '%.*s'", NameLen(missing), missing.data());
+        why.Set(TrF("skill_why_leader_has_buff", {{"buff", ShortName(missing)}}));
         return false;
     }
     return true;
@@ -522,7 +524,7 @@ bool CheckSkillReady(const SkillRule& r, const CombatFacts& f, Reason& why) {
     const std::string_view name = TrimView(r.skillName);
     if (name.empty()) return true;
     if (!f.skills || !f.skillsFresh) {
-        why.Set("skills not read yet");
+        why.Set(Tr("skill_why_skills_not_read"));
         return false;
     }
     bool found = false;
@@ -531,30 +533,30 @@ bool CheckSkillReady(const SkillRule& r, const CombatFacts& f, Reason& why) {
         found = true;
         if (s.canBeUsed) return true;
     }
-    if (!found) why.Set("skill '%.*s' not found on the character", NameLen(name), name.data());
-    else why.Set("skill '%.*s' not ready (cooldown)", NameLen(name), name.data());
+    if (!found) why.Set(TrF("skill_why_skill_not_found", {{"skill", ShortName(name)}}));
+    else why.Set(TrF("skill_why_skill_not_ready", {{"skill", ShortName(name)}}));
     return false;
 }
 
 bool CheckFlask(const SkillRule& r, const CombatFacts& f, Reason& why) {
     if (r.kind != RuleKind::Flask || r.flaskSlot < 0) return true;
     if (!f.belt || !f.beltFresh) {
-        why.Set("belt not read yet");
+        why.Set(Tr("skill_why_belt_not_read"));
         return false;
     }
     const FlaskInfo* fl = FindBeltSlot(*f.belt, r.flaskSlot);
-    const char* slot = BeltSlotName(r.flaskSlot);
+    const LocText slot = Tr(BeltSlotName(r.flaskSlot));
     if (!fl) {
-        why.Set("%s is empty", slot);
+        why.Set(TrF("skill_why_slot_empty", {{"slot", slot}}));
         return false;
     }
     const int perUse = (std::max)(fl->perUse, 1);
     if (fl->charges < perUse) {
-        why.Set("%s: %d of %d charges", slot, fl->charges, perUse);
+        why.Set(TrF("skill_why_slot_charges", {{"slot", slot}, {"charges", Num("%d", fl->charges)}, {"needed", Num("%d", perUse)}}));
         return false;
     }
     if (r.flaskSkipIfActive && fl->active) {
-        why.Set("%s is already active", slot);
+        why.Set(TrF("skill_why_slot_active", {{"slot", slot}}));
         return false;
     }
     return true;
@@ -564,29 +566,33 @@ bool CheckInterval(const SkillRule& r, uint64_t lastFireMs, uint64_t now, Reason
     if (lastFireMs == 0 || r.minIntervalMs <= 0) return true;
     const uint64_t next = lastFireMs + static_cast<uint64_t>(r.minIntervalMs);
     if (now >= next) return true;
-    why.Set("own interval: %llu ms left", static_cast<unsigned long long>(next - now));
+    why.Set(TrF("skill_why_interval", {{"ms", Num("%llu", static_cast<unsigned long long>(next - now))}}));
     return false;
 }
 
 namespace {
 
+// The running task for a reason: its key, or "this task".
+LocText TaskText(const RuleInputs& in) {
+    return in.taskName && in.taskName[0] ? Tr(in.taskName) : Tr("task_this");
+}
+
 void DescribeRejects(const TargetPick& p, Reason& why) {
-    char buf[128];
-    int len = 0;
-    auto add = [&](int n, const char* what) {
-        if (n <= 0 || len >= static_cast<int>(sizeof(buf)) - 1) return;
-        const int w = std::snprintf(buf + len, sizeof(buf) - static_cast<size_t>(len), "%s%d %s", len ? ", " : "", n, what);
-        if (w > 0) len = (std::min)(static_cast<int>(sizeof(buf)) - 1, len + w);
+    LocText list;   // "<n> too far, <n> out of sight, ..." as nested text_join entries
+    auto add = [&](int n, const char* key) {
+        if (n <= 0) return;
+        LocText part = TrF(key, {{"count", Num("%d", n)}});
+        list = list.empty() ? std::move(part) : TrF("text_join", {{"a", list}, {"b", part}});
     };
-    add(p.rejects.tooFar, "too far");
-    add(p.rejects.notEligible, "off screen / untargetable");
-    add(p.rejects.noLos, "out of sight");
-    add(p.rejects.lowRarity, "below the rarity");
-    add(p.rejects.outsideLeash, "outside the leash");
-    add(p.rejects.blacklisted, "blacklisted");
-    add(p.rejects.untargetable, "untargetable");
-    if (len == 0) why.Set("no target");
-    else why.Set("no target (%s)", buf);
+    add(p.rejects.tooFar, Key("skill_reject_too_far"));
+    add(p.rejects.notEligible, Key("skill_reject_not_eligible"));
+    add(p.rejects.noLos, Key("skill_reject_no_los"));
+    add(p.rejects.lowRarity, Key("skill_reject_low_rarity"));
+    add(p.rejects.outsideLeash, Key("skill_reject_outside_leash"));
+    add(p.rejects.blacklisted, Key("skill_reject_blacklisted"));
+    add(p.rejects.untargetable, Key("skill_reject_untargetable"));
+    if (list.empty()) why.Set(Tr("skill_why_no_target"));
+    else why.Set(TrF("skill_why_no_target_rejects", {{"rejects", list}}));
 }
 
 }  // namespace
@@ -597,14 +603,14 @@ bool ResolveTarget(const SkillRule& r, const CombatFacts& f, const TargetContext
     out.needsCursor = out.aim != AimKind::None;
     if (!out.needsCursor) return true;
     if (!f.projectionValid || !t.proj || !t.proj->valid) {
-        why.Set("no screen projection yet");
+        why.Set(Tr("skill_why_no_projection"));
         return false;
     }
     const ProjectionData& proj = *t.proj;
     switch (out.aim) {
         case AimKind::Monster: {
             if (!t.monsters || t.monsters->empty()) {
-                why.Set("no enemies");
+                why.Set(Tr("skill_why_no_enemies"));
                 return false;
             }
             TargetQuery q;
@@ -631,19 +637,19 @@ bool ResolveTarget(const SkillRule& r, const CombatFacts& f, const TargetContext
             if (t.views && pick.index < t.views->size() && (*t.views)[pick.index].onScreen) {
                 out.screen = (*t.views)[pick.index].screen;
             } else if (!ProjectWorld(proj, m.world, out.screen) || !t.safe.Contains(out.screen)) {
-                why.Set("target off screen");
+                why.Set(Tr("skill_why_target_off_screen"));
                 return false;
             }
             return true;
         }
         case AimKind::Leader: {
             if (!f.leaderVisible) {
-                why.Set("leader not visible");
+                why.Set(Tr("skill_why_leader_not_visible"));
                 return false;
             }
             out.grid = f.leader;
             if (!ProjectWorld(proj, f.leaderWorld, out.screen) || !t.safe.Contains(out.screen)) {
-                why.Set("leader off screen");
+                why.Set(Tr("skill_why_leader_off_screen"));
                 return false;
             }
             return true;
@@ -651,7 +657,7 @@ bool ResolveTarget(const SkillRule& r, const CombatFacts& f, const TargetContext
         case AimKind::Self: {
             out.grid = f.self;
             if (!ProjectWorld(proj, f.selfWorld, out.screen)) {
-                why.Set("character off screen");
+                why.Set(Tr("skill_why_self_off_screen"));
                 return false;
             }
             out.screen = t.safe.Clamp(out.screen);
@@ -670,13 +676,13 @@ bool ResolveTarget(const SkillRule& r, const CombatFacts& f, const TargetContext
                 }
             }
             if (!have) {
-                why.Set("nothing to move toward (no path, leader near or unknown)");
+                why.Set(Tr("skill_why_nothing_to_move_to"));
                 return false;
             }
             Vec2 playerScreen, pointScreen;
             if (!ProjectWorld(proj, f.selfWorld, playerScreen) ||
                 !ProjectGrid(proj, point, f.selfWorld.z, pointScreen)) {
-                why.Set("no screen projection for the path");
+                why.Set(Tr("skill_why_no_path_projection"));
                 return false;
             }
             out.grid = point;
@@ -697,8 +703,9 @@ bool CheckEnemies(const SkillRule& r, const CombatFacts& f, const TargetContext&
     if (target.aim == AimKind::Monster) {
         const int n = CountMonstersNear(ms, target.grid, r.enemyRadius, 0, t.usable);
         if (n < r.minEnemies) {
-            why.Set("%d enem%s within %.0f of the target (needs %d)", n, n == 1 ? "y" : "ies", r.enemyRadius,
-                    r.minEnemies);
+            why.Set(TrF("skill_why_enemies_target", {{"radius", Num("%.0f", r.enemyRadius)},
+                                                     {"count", Num("%d", n)},
+                                                     {"min", Num("%d", r.minEnemies)}}));
             return false;
         }
         return true;
@@ -706,10 +713,14 @@ bool CheckEnemies(const SkillRule& r, const CombatFacts& f, const TargetContext&
     const int n = CountMonstersNear(ms, f.self, r.enemyRadius, r.minRarity, t.usable);
     if (n < r.minEnemies) {
         if (r.minRarity > 0)
-            why.Set("%d %s+ enem%s within %.0f (needs %d)", n, RarityName(r.minRarity), n == 1 ? "y" : "ies",
-                    r.enemyRadius, r.minEnemies);
+            why.Set(TrF("skill_why_enemies_rarity", {{"rarity", Tr(RarityName(r.minRarity))},
+                                                     {"radius", Num("%.0f", r.enemyRadius)},
+                                                     {"count", Num("%d", n)},
+                                                     {"min", Num("%d", r.minEnemies)}}));
         else
-            why.Set("%d enem%s within %.0f (needs %d)", n, n == 1 ? "y" : "ies", r.enemyRadius, r.minEnemies);
+            why.Set(TrF("skill_why_enemies", {{"radius", Num("%.0f", r.enemyRadius)},
+                                              {"count", Num("%d", n)},
+                                              {"min", Num("%d", r.minEnemies)}}));
         return false;
     }
     return true;
@@ -718,7 +729,7 @@ bool CheckEnemies(const SkillRule& r, const CombatFacts& f, const TargetContext&
 bool CheckCursor(const SkillRule& r, const CombatFacts& f, const RuleTarget& target, Reason& why) {
     if (!f.cursorBusy) return true;
     if (target.needsCursor || IsMouseButtonVk(r.key)) {
-        why.Set("another plugin is using the cursor");
+        why.Set(Tr("skill_why_cursor_busy"));
         return false;
     }
     return true;
@@ -729,20 +740,20 @@ bool EvaluateRule(const SkillRule& r, const CombatFacts& f, const TargetContext&
     why.Clear();
     target = RuleTarget{};
     if (!r.enabled) {
-        why.Set("off");
+        why.Set(Tr("skill_why_off"));
         return false;
     }
     if (!CheckKey(r, f, why)) return false;
     if (!f.selfValid) {
-        why.Set("character not readable");
+        why.Set(Tr("skill_why_char_unreadable"));
         return false;
     }
     if (f.selfDead) {
-        why.Set("dead");
+        why.Set(Tr("skill_why_dead"));
         return false;
     }
     if (!in.classAllowed) {
-        why.Set("not while %s runs", in.taskName && in.taskName[0] ? in.taskName : "this task");
+        why.Set(TrF("skill_why_not_while", {{"task", TaskText(in)}}));
         return false;
     }
     if (!CheckCombatMode(r, f, why)) return false;
@@ -755,7 +766,7 @@ bool EvaluateRule(const SkillRule& r, const CombatFacts& f, const TargetContext&
     if (!CheckSkillReady(r, f, why)) return false;
     if (!CheckFlask(r, f, why)) return false;
     if (!in.longPressAllowed && IsLongPress(r)) {
-        why.Set("holds and channels wait until %s ends", in.taskName && in.taskName[0] ? in.taskName : "this task");
+        why.Set(TrF("skill_why_long_press_wait", {{"task", TaskText(in)}}));
         return false;
     }
     if (!CheckInterval(r, in.lastFireMs, f.now, why)) return false;

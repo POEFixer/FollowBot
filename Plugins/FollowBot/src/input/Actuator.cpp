@@ -14,13 +14,13 @@ namespace fb {
 
 const char* ActResultName(ActResult r) {
     switch (r) {
-        case ActResult::Ok:         return "ok";
-        case ActResult::Aborted:    return "aborted";
-        case ActResult::NotReady:   return "not ready";
-        case ActResult::CursorBusy: return "cursor busy";
-        case ActResult::Refused:    return "refused";
+        case ActResult::Ok:         return Key("act_ok");
+        case ActResult::Aborted:    return Key("act_aborted");
+        case ActResult::NotReady:   return Key("act_not_ready");
+        case ActResult::CursorBusy: return Key("act_cursor_busy");
+        case ActResult::Refused:    return Key("act_refused");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 Actuator::Actuator() = default;
@@ -38,7 +38,7 @@ bool Actuator::CanAct() const {
 }
 
 ActResult Actuator::Abort(const char* why) {
-    if (m_log && AnyHeld()) m_log->Add(LogCat::Input, "Input aborted (%s): released held keys", why);
+    if (m_log && AnyHeld()) m_log->Add(LogCat::Input, TrF("log_input_aborted", {{"why", Tr(why)}}));
     ReleaseAll();
     return ActResult::Aborted;
 }
@@ -60,7 +60,7 @@ bool Actuator::IsHeld(int vk) const { return std::find(m_held.begin(), m_held.en
 
 ActResult Actuator::KeyDown(int vk) {
     if (vk <= 0 || vk > 0xFE) return ActResult::Refused;
-    if (!CanAct()) return Abort("key down");
+    if (!CanAct()) return Abort(Key("input_key_down"));
     if (IsHeld(vk)) return ActResult::Ok;
     POINT p = ToPoint(m_cursor);
     if (!win::VkEvent(vk, true, m_game, win::IsMouseVk(vk) && m_haveCursor ? &p : nullptr)) return ActResult::Refused;
@@ -91,12 +91,12 @@ ActResult Actuator::SetMoveKey(int vk, bool down) {
     if (vk <= 0) return ActResult::Refused;
     if (m_moveVk != 0 && m_moveVk != vk) KeyUp(m_moveVk);
     m_moveVk = vk;
-    if (IsHeld(vk)) return CanAct() ? ActResult::Ok : Abort("move key");
+    if (IsHeld(vk)) return CanAct() ? ActResult::Ok : Abort(Key("input_move_key"));
     return KeyDown(vk);
 }
 
 ActResult Actuator::MoveCursor(const Vec2& client) {
-    if (!CanAct()) return Abort("cursor move");
+    if (!CanAct()) return Abort(Key("input_cursor_move"));
     if (!IsFinite(client)) return ActResult::Refused;
     win::MoveCursorClient(m_game, static_cast<int>(std::lround(client.x)), static_cast<int>(std::lround(client.y)));
     m_cursor = client;
@@ -105,7 +105,7 @@ ActResult Actuator::MoveCursor(const Vec2& client) {
 }
 
 ActResult Actuator::MoveCursorHuman(const Vec2& client) {
-    if (!CanAct()) return Abort("cursor move");
+    if (!CanAct()) return Abort(Key("input_cursor_move"));
     if (!IsFinite(client)) return ActResult::Refused;
     if (!m_cfg.humanMouse) return MoveCursor(client);
     POINT from{};
@@ -115,7 +115,7 @@ ActResult Actuator::MoveCursorHuman(const Vec2& client) {
     const human::Config hc = human::MakeConfig(m_cfg.humanSpeed, m_cfg.humanCurvature, m_cfg.humanTremor);
     const auto traj = human::Generate(from.x, from.y, to.x, to.y, hc, m_rng.Engine()());
     MarkCursorBusy(1500);
-    if (!human::Replay(traj, [this] { return !CanAct(); })) return Abort("cursor move");
+    if (!human::Replay(traj, [this] { return !CanAct(); })) return Abort(Key("input_cursor_move"));
     m_cursor = client;
     m_haveCursor = true;
     return ActResult::Ok;
@@ -145,7 +145,7 @@ bool Actuator::SleepCancellable(int ms) {
 ActResult Actuator::WaitGate(int maxWaitMs) {
     const uint64_t start = NowMs();
     for (;;) {
-        if (!CanAct()) return Abort("gate wait");
+        if (!CanAct()) return Abort(Key("input_gate_wait"));
         const uint64_t now = NowMs();
         if (m_gate.Ready(now)) return ActResult::Ok;
         if (now - start >= static_cast<uint64_t>(maxWaitMs < 0 ? 0 : maxWaitMs)) return ActResult::NotReady;
@@ -173,12 +173,12 @@ ActResult Actuator::UiClick(const Vec2& client, int vk, bool jitter) {
 ActResult Actuator::WorldClick(const Vec2& client, int dwellMs, int holdMs, int vk,
                                const std::function<bool()>& verifyHover, int reHovers) {
     if (!win::IsMouseVk(vk)) return ActResult::Refused;
-    if (!CanAct()) return Abort("world click");
+    if (!CanAct()) return Abort(Key("input_world_click"));
     const Vec2 target = client + ClickJitter();
     MarkCursorBusy(static_cast<uint32_t>(dwellMs + holdMs + 800));
     ActResult r = m_cfg.humanMouse ? MoveCursorHuman(target) : MoveCursor(target);
     if (r != ActResult::Ok) return r;
-    if (!SleepCancellable(dwellMs)) return Abort("hover dwell");
+    if (!SleepCancellable(dwellMs)) return Abort(Key("input_hover_dwell"));
     Vec2 at = target;
     if (verifyHover && !verifyHover()) {
         static const Vec2 kOffsets[] = {{0.f, -6.f}, {5.f, 3.f}, {-5.f, 3.f}, {0.f, 6.f}};
@@ -186,7 +186,7 @@ ActResult Actuator::WorldClick(const Vec2& client, int dwellMs, int holdMs, int 
             at = client + kOffsets[i];
             r = MoveCursor(at);
             if (r != ActResult::Ok) return r;
-            if (!SleepCancellable((std::max)(30, dwellMs / 2))) return Abort("re-hover");
+            if (!SleepCancellable((std::max)(30, dwellMs / 2))) return Abort(Key("input_re_hover"));
             if (verifyHover()) break;
         }
         // Not confirmed after the re-hovers: press anyway (the hover flag is not
@@ -203,7 +203,7 @@ ActResult Actuator::WorldClick(const Vec2& client, int dwellMs, int holdMs, int 
     MarkGate();
     m_cursor = at;
     m_haveCursor = true;
-    return held ? ActResult::Ok : Abort("click hold");
+    return held ? ActResult::Ok : Abort(Key("input_click_hold"));
 }
 
 ActResult Actuator::TapKey(int vk, int holdMs) {
@@ -218,7 +218,7 @@ ActResult Actuator::TapKey(int vk, int holdMs) {
     win::VkEvent(vk, false, m_game, at);
     Track(vk, false);
     MarkGate();
-    return ok ? ActResult::Ok : Abort("key tap");
+    return ok ? ActResult::Ok : Abort(Key("input_key_tap"));
 }
 
 ActResult Actuator::HoldKeyFor(int vk, int ms) { return TapKey(vk, ms); }
@@ -234,17 +234,17 @@ ActResult Actuator::TypeChatCommand(const std::string& utf8) {
     if (m_uiTask || utf8.empty()) return ActResult::Refused;
     const ActResult g = WaitGate(600);
     if (g != ActResult::Ok) return g;
-    if (!CanAct()) return Abort("chat");
+    if (!CanAct()) return Abort(Key("input_chat"));
     win::ReleaseHeldModifiers();
     win::KeyEvent(VK_RETURN, true);
     win::KeyEvent(VK_RETURN, false);
-    if (!SleepCancellable(80)) return Abort("chat");
+    if (!SleepCancellable(80)) return Abort(Key("input_chat"));
     win::SendUnicodeText(Utf8ToWide(utf8));
-    if (!SleepCancellable(50)) return Abort("chat");
+    if (!SleepCancellable(50)) return Abort(Key("input_chat"));
     win::KeyEvent(VK_RETURN, true);
     win::KeyEvent(VK_RETURN, false);
     MarkGate();
-    if (m_log) m_log->Add(LogCat::Input, "Typed chat command: %s", utf8.c_str());
+    if (m_log) m_log->Add(LogCat::Input, TrF("log_input_chat", {{"command", utf8}}));
     return ActResult::Ok;
 }
 

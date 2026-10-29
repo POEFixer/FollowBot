@@ -11,43 +11,29 @@ namespace fb {
 
 const char* LogCatName(LogCat c) {
     switch (c) {
-        case LogCat::General: return "General";
-        case LogCat::Gate:    return "Gate";
-        case LogCat::Move:    return "Move";
-        case LogCat::Nav:     return "Nav";
-        case LogCat::Stuck:   return "Stuck";
-        case LogCat::Leader:  return "Leader";
-        case LogCat::Task:    return "Task";
-        case LogCat::Travel:  return "Travel";
-        case LogCat::Loot:    return "Loot";
-        case LogCat::Combat:  return "Combat";
-        case LogCat::Stash:   return "Stash";
-        case LogCat::Death:   return "Death";
-        case LogCat::Input:   return "Input";
-        case LogCat::Error:   return "Error";
+        case LogCat::General: return Key("log_cat_general");
+        case LogCat::Gate:    return Key("log_cat_gate");
+        case LogCat::Move:    return Key("log_cat_move");
+        case LogCat::Nav:     return Key("log_cat_nav");
+        case LogCat::Stuck:   return Key("log_cat_stuck");
+        case LogCat::Leader:  return Key("log_cat_leader");
+        case LogCat::Task:    return Key("log_cat_task");
+        case LogCat::Travel:  return Key("log_cat_travel");
+        case LogCat::Loot:    return Key("log_cat_loot");
+        case LogCat::Combat:  return Key("log_cat_combat");
+        case LogCat::Stash:   return Key("log_cat_stash");
+        case LogCat::Death:   return Key("log_cat_death");
+        case LogCat::Input:   return Key("log_cat_input");
+        case LogCat::Error:   return Key("log_cat_error");
         case LogCat::Count:   break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 BotLog::BotLog() { m_ring.reserve(kCapacity); }
 
-void BotLog::Add(LogCat cat, const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    AddV(cat, fmt, args);
-    va_end(args);
-}
-
-void BotLog::AddV(LogCat cat, const char* fmt, va_list args) {
-    if (!fmt) return;
-    char buf[1024];
-    const int n = std::vsnprintf(buf, sizeof(buf), fmt, args);
-    if (n < 0) return;
-    AddText(cat, std::string(buf));
-}
-
-void BotLog::AddText(LogCat cat, std::string text) {
+void BotLog::Add(LogCat cat, LocText text) {
+    if (text.empty()) return;
     std::lock_guard<std::mutex> lock(m_mu);
     const uint64_t now = NowMs();
     if (m_repeatWindowMs > 0 && !m_ring.empty()) {
@@ -104,6 +90,11 @@ void BotLog::SetFileSink(const std::filesystem::path& dir, bool enabled) {
     m_fileEnabled = enabled && !dir.empty();
 }
 
+void BotLog::SetEnglish(LocLookup english) {
+    std::lock_guard<std::mutex> lock(m_mu);
+    m_english = english;
+}
+
 void BotLog::SetRepeatWindow(uint64_t windowMs) {
     std::lock_guard<std::mutex> lock(m_mu);
     m_repeatWindowMs = windowMs;
@@ -115,10 +106,13 @@ void BotLog::WriteFileLine(const LogLine& line) {
     localtime_s(&tmv, &t);
     char name[64];
     std::snprintf(name, sizeof(name), "followbot-%04d-%02d-%02d.log", tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday);
-    char prefix[64];
-    std::snprintf(prefix, sizeof(prefix), "%02d:%02d:%02d [%s] ", tmv.tm_hour, tmv.tm_min, tmv.tm_sec,
-                  LogCatName(line.cat));
-    io::AppendTextFile(m_fileDir / name, std::string(prefix) + line.text + "\r\n");
+    const char* cat = LogCatName(line.cat);
+    if (m_english) {
+        if (const char* english = m_english(cat)) cat = english;
+    }
+    char prefix[96];
+    std::snprintf(prefix, sizeof(prefix), "%02d:%02d:%02d [%s] ", tmv.tm_hour, tmv.tm_min, tmv.tm_sec, cat);
+    io::AppendTextFile(m_fileDir / name, std::string(prefix) + Render(line.text, m_english) + "\r\n");
 }
 
 }  // namespace fb

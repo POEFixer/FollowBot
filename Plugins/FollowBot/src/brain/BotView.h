@@ -25,7 +25,7 @@ struct InteractableView {
 struct MarkerView {
     Vec2        grid;
     uint32_t    color = 0xFFFFFFFFu;
-    std::string label;
+    const char* label = "";          // a key (lang/en.json), "" = none
 };
 
 struct BlockView {
@@ -39,12 +39,13 @@ struct BotView {
     bool        running = false;
     bool        paused = false;
     bool        debugWalk = false;
-    std::string gateReason;          // empty = not holding
-    std::string mode;                // one line: what the bot does
-    std::string taskName;            // active exclusive task ("" = Follow)
-    std::string taskDetail;
-    std::string lastError;
-    std::string debugResult;         // last debug-tool result line
+    // Texts are keys (lang/en.json) or LocTexts: the render thread translates them.
+    std::string gateReason;          // a key; empty = not holding
+    std::string mode;                // a key: what the bot does
+    std::string taskName;            // the active exclusive task's key ("" = Follow)
+    LocText     taskDetail;
+    LocText     lastError;
+    std::vector<LocText> debugResult;   // the last debug-tool result, one entry per line
 
     // Game.
     bool        attached = false;
@@ -77,7 +78,7 @@ struct BotView {
 
     // Movement.
     std::vector<Vec2> path;
-    std::string planStatus;
+    std::string planStatus;          // a key
     bool        hasGoal = false;
     Vec2        goal;
     bool        hasLookahead = false;
@@ -87,7 +88,7 @@ struct BotView {
     bool        moving = false;
     bool        sprinting = false;
     float       followDistance = 0.f, stopDistance = 0.f;
-    std::string stuckStep;
+    std::string stuckStep;           // a key
     int         stuckEpisodes = 0;
     std::vector<Vec2> stuckMarks;
     std::vector<BlockView> blocks;
@@ -102,8 +103,8 @@ struct BotView {
 
     // Combat.
     float       combatRadius = 0.f, leashRadius = 0.f;
-    std::string currentRule;
-    std::vector<std::string> ruleWhyNot;
+    std::string currentRule;         // the rule's user label
+    std::vector<LocText> ruleWhyNot;
 
     // Session.
     int         deathsMap = 0, deathsSession = 0;

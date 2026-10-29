@@ -161,22 +161,22 @@ const ItemCategory* LootCategoryDisplayOrder(size_t& count) {
 
 const char* LootCategoryHint(ItemCategory c) {
     switch (c) {
-        case C::Currency:    return "Orbs, shards, scrolls, abyssal bones, verisium, artifacts, wombgifts.";
-        case C::Quest:       return "Quest items (campaign keys, tablets, books).";
-        case C::Gems:        return "Uncut skill, support and spirit gems, lineage gems.";
-        case C::Waystones:   return "Waystones and expedition logbooks.";
-        case C::Tablets:     return "Precursor tablets (magic and rare; unique ones count as unique items).";
-        case C::Runes:       return "Runes, soul cores, idols, talismans.";
-        case C::Omens:       return "Omens, essences, catalysts, distilled emotions.";
-        case C::Fragments:   return "Splinters, map fragments, breachstones, reliquary and pinnacle keys, trial keys.";
-        case C::Jewels:      return "Jewels (magic and rare; unique ones count as unique items).";
-        case C::Flasks:      return "Life and mana flasks, charms.";
-        case C::Uniques:     return "Any unique item (rarity unique), whatever its class.";
-        case C::Weapons:     return "Weapons by rarity (unique ones count as unique items).";
-        case C::Armour:      return "Body armours, helmets, gloves, boots, shields, bucklers, foci, quivers.";
-        case C::Accessories: return "Rings, amulets, belts.";
-        case C::Other:       return "Anything the table does not know (relics, legacy items).";
-        case C::Gold:        return "Gold piles: they go to your gold, not into the backpack.";
+        case C::Currency:    return Key("loot_hint_currency");
+        case C::Quest:       return Key("loot_hint_quest");
+        case C::Gems:        return Key("loot_hint_gems");
+        case C::Waystones:   return Key("loot_hint_waystones");
+        case C::Tablets:     return Key("loot_hint_tablets");
+        case C::Runes:       return Key("loot_hint_runes");
+        case C::Omens:       return Key("loot_hint_omens");
+        case C::Fragments:   return Key("loot_hint_fragments");
+        case C::Jewels:      return Key("loot_hint_jewels");
+        case C::Flasks:      return Key("loot_hint_flasks");
+        case C::Uniques:     return Key("loot_hint_uniques");
+        case C::Weapons:     return Key("loot_hint_weapons");
+        case C::Armour:      return Key("loot_hint_armour");
+        case C::Accessories: return Key("loot_hint_accessories");
+        case C::Other:       return Key("loot_hint_other");
+        case C::Gold:        return Key("loot_hint_gold");
         case C::Count:       break;
     }
     return "";

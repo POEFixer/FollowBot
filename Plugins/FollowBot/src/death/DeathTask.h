@@ -29,12 +29,13 @@
 #include "DeathLogic.h"
 
 #include <string>
+#include <vector>
 
 namespace fb {
 
 class DeathTask : public Task {
 public:
-    const char* Name() const override { return "Death"; }
+    const char* Name() const override { return Key("task_death"); }
 
     bool WantsToStart(BotContext& ctx);
     void Start(BotContext& ctx);
@@ -46,13 +47,13 @@ public:
     }
 
     // Debug tool ("Test death screen lookup"): what the lookup finds right now,
-    // as one line for the Debug tab. Runs on the worker.
-    static std::string ProbeDeathScreen(BotContext& ctx);
+    // one entry per line for the Debug tab. Runs on the worker.
+    static std::vector<LocText> ProbeDeathScreen(BotContext& ctx);
 
 private:
     void BeginDeath(BotContext& ctx);
     void OnRevived(BotContext& ctx, bool byTask);
-    TaskStatus HoldManual(BotContext& ctx, const std::string& why, bool dumpHint);
+    TaskStatus HoldManual(BotContext& ctx, const LocText& why, bool dumpHint);
 
     death::DeathTracker m_tracker;
     // The death being handled (from confirmed to alive again).

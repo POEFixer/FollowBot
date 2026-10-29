@@ -146,6 +146,7 @@
     <ClInclude Include="src\brain\FollowTask.h" />
     <ClInclude Include="src\brain\Gates.h" />
     <ClInclude Include="src\brain\Task.h" />
+    <ClInclude Include="src\combat\RuleLabels.h" />
     <ClInclude Include="src\combat\SkillEngine.h" />
     <ClInclude Include="src\combat\SkillSettings.h" />
     <ClInclude Include="src\combat\Targeting.h" />
@@ -156,6 +157,8 @@
     <ClInclude Include="src\common\JsonUtil.h" />
     <ClInclude Include="src\common\Random.h" />
     <ClInclude Include="src\common\Strings.h" />
+    <ClInclude Include="src\core\LocText.h" />
+    <ClInclude Include="src\lang_en.generated.h" />
     <ClInclude Include="src\config\Profiles.h" />
     <ClInclude Include="src\config\Settings.h" />
     <ClInclude Include="src\death\DeathSettings.h" />

@@ -1,13 +1,17 @@
 // FollowBot.cpp - lifecycle, hotkeys, the bot worker and the plugin info.
 // FB_TESTS_EXCLUDE: plugin entry (PluginSDK + ImGui); not built into tests/.
 #include "FollowBotPlugin.h"
+#include "lang_en.generated.h"
 
 #include "../../../POEFixer/plugin_sdk/PluginUi.h"
 #include "common/Clock.h"
 #include "config/Profiles.h"
 #include "input/Win32Input.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <iterator>
 
 using namespace fb;
 
@@ -16,7 +20,18 @@ constexpr uint64_t kHeartbeatTimeoutMs = 500;
 constexpr uint64_t kFaultBackoffMs = 1000;
 }  // namespace
 
-FollowBotPlugin::FollowBotPlugin() = default;
+const char* fb::EnglishText(const char* key) {
+    if (!key) return nullptr;
+    const PluginSDK::I18n::Entry* first = std::begin(kPluginLangEn);
+    const PluginSDK::I18n::Entry* last = std::end(kPluginLangEn);
+    // kPluginLangEn is sorted by key bytes (gen.py), as strcmp compares them.
+    const auto* it = std::lower_bound(first, last, key, [](const PluginSDK::I18n::Entry& e, const char* k) {
+        return std::strcmp(e.key, k) < 0;
+    });
+    return it != last && std::strcmp(it->key, key) == 0 ? it->text : nullptr;
+}
+
+FollowBotPlugin::FollowBotPlugin() { m_log.SetEnglish(&EnglishText); }
 
 FollowBotPlugin::~FollowBotPlugin() {
     StopWorker();
@@ -127,7 +142,7 @@ void FollowBotPlugin::OnEnable(bool) {
         }
     });
     m_enabled = true;
-    m_log.Add(LogCat::General, "Follow Bot enabled");
+    m_log.Add(LogCat::General, Tr("log_enabled"));
     ctx()->Log.Info("Follow Bot enabled");
 }
 
@@ -301,7 +316,7 @@ void FollowBotPlugin::WorkerLoop() {
             ++m_faults;
             m_lastFaultMs = NowMs();
             m_act.ReleaseAll();
-            m_log.Add(LogCat::Error, "Worker fault #%d: input released, retrying in 1 s", m_faults);
+            m_log.Add(LogCat::Error, TrF("log_worker_fault", {{"count", Num("%d", m_faults)}}));
         }
         const uint64_t spent = NowMs() - now;
         if (spent < static_cast<uint64_t>(tickMs)) ::Sleep(static_cast<DWORD>(static_cast<uint64_t>(tickMs) - spent));
@@ -431,11 +446,13 @@ void FollowBotPlugin::Tick() {
         if (running) {
             m_brain.OnStart(bc);
             m_stashSeen = m_stashNowCount.load();
-            m_log.Add(LogCat::General, "Started (profile \"%s\", leader \"%s\")", p.name.c_str(),
-                      p.follow.leaderName.empty() ? (p.follow.leaderAuto ? "auto" : "-") : p.follow.leaderName.c_str());
+            const LocText leader = !p.follow.leaderName.empty() ? TrF("text_verbatim", {{"text", p.follow.leaderName}})
+                                   : p.follow.leaderAuto        ? Tr("log_leader_auto")
+                                                                : Tr("common_none");
+            m_log.Add(LogCat::General, TrF("log_started", {{"profile", p.name}, {"leader", leader}}));
         } else {
             m_brain.OnStop(bc);
-            m_log.Add(LogCat::General, "Stopped");
+            m_log.Add(LogCat::General, Tr("log_stopped"));
         }
     }
 
@@ -458,13 +475,13 @@ void FollowBotPlugin::Tick() {
     m_brain.Tick(bc, in, out);
     m_debugActive = m_brain.DebugWalkActive();
     if (out.stopBot && m_running.exchange(false)) {
-        const std::string why = out.stopReason.empty() ? std::string("stopped") : out.stopReason;
-        m_log.Add(LogCat::General, "Bot stopped: %s", why.c_str());
+        const LocText why = out.stopReason.empty() ? Tr("gate_stopped") : out.stopReason;
+        m_log.Add(LogCat::General, TrF("log_bot_stopped", {{"why", why}}));
         {
             std::lock_guard<std::mutex> lock(m_msgMu);
             m_stopMessage = why;
         }
-        const std::string line = "Follow Bot stopped: " + why;
+        const std::string line = "Follow Bot stopped: " + Render(why, &EnglishText);   // the host log stays English
         ctx()->Log.Info(line.c_str());
         m_brain.OnStop(bc);
         m_wasRunning = false;
@@ -484,7 +501,7 @@ void FollowBotPlugin::Tick() {
     v->profileAuto = IsAutoSelected(s, m_world.self.name, m_profileIndex);
     {
         std::lock_guard<std::mutex> lock(m_msgMu);
-        if (!m_stopMessage.empty() && !v->running) v->lastError = "Stopped: " + m_stopMessage;
+        if (!m_stopMessage.empty() && !v->running) v->lastError = TrF("error_stopped", {{"why", m_stopMessage}});
     }
     Publish(std::move(v));
 }
@@ -500,6 +517,6 @@ extern "C" PLUGIN_API void DestroyPlugin(PluginSDK::Plugin* p) { delete p; }
 POEFIXER_PLUGIN_INFO(
     "FollowBot",
     "Follow Bot",
-    "1.0.1",
+    "1.0.2",
     "POEFixer",
     "A follower that keeps up with your leader through areas and portals, fights, loots and stashes by your rules, and recovers from getting stuck.")

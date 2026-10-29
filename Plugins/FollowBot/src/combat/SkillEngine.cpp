@@ -30,7 +30,7 @@ constexpr uint32_t kMarkerColor = 0xFF3C3CFFu;   // ImGui ABGR: red
 
 // The Brain passes its Follow task on the follow path (steering is skipped
 // after a cast there); any other task steers on its own before the cast.
-bool IsFollowPath(const Task* current) { return !current || std::strcmp(current->Name(), "Follow") == 0; }
+bool IsFollowPath(const Task* current) { return !current || std::strcmp(current->Name(), Key("task_follow")) == 0; }
 
 bool Fresh(uint64_t stampMs, uint64_t now, uint64_t maxAge) {
     return stampMs != 0 && now >= stampMs && now - stampMs <= maxAge;
@@ -42,12 +42,13 @@ uint64_t CellKey(const Vec2& p) {
     return (static_cast<uint64_t>(x) << 32) | y;
 }
 
+// Where a cast aimed, for the log: a key ("" = no aim).
 const char* AimText(const RuleTarget& t) {
     switch (t.aim) {
-        case AimKind::Monster:   return "at a monster";
-        case AimKind::Leader:    return "on the leader";
-        case AimKind::Self:      return "on self";
-        case AimKind::PathAhead: return "ahead on the path";
+        case AimKind::Monster:   return Key("skill_aim_monster");
+        case AimKind::Leader:    return Key("skill_aim_leader");
+        case AimKind::Self:      return Key("skill_aim_self");
+        case AimKind::PathAhead: return Key("skill_aim_path");
         case AimKind::None:      break;
     }
     return "";
@@ -101,8 +102,8 @@ void SkillEngine::Reset() {
     m_lastPruneMs = 0;
 }
 
-void SkillEngine::SetWhy(size_t index, const char* text) {
-    if (index < m_whyNot.size()) m_whyNot[index].assign(text ? text : "");
+void SkillEngine::SetWhy(size_t index, const LocText& text) {
+    if (index < m_whyNot.size()) m_whyNot[index] = text;
 }
 
 bool SkillEngine::LineOfSight(const Vec2& from, const Vec2& to) {
@@ -253,7 +254,7 @@ void SkillEngine::BuildFrame(BotContext& ctx) {
 void SkillEngine::ReleaseHold(BotContext& ctx, const char* why) {
     if (!m_hold.active) return;
     ctx.act.KeyUp(m_hold.key);
-    ctx.log.Add(LogCat::Combat, "Released \"%s\" (%s)", m_hold.label.c_str(), why ? why : "done");
+    ctx.log.Add(LogCat::Combat, TrF("log_skill_released", {{"rule", m_hold.label}, {"why", Tr(why ? why : Key("skill_release_done"))}}));
     const uint64_t gate = ctx.now + static_cast<uint64_t>(ctx.p.skills.globalCastGateMs);
     if (gate > m_nextCastMs) m_nextCastMs = gate;
     m_hold = Hold{};
@@ -264,47 +265,42 @@ bool SkillEngine::ContinueHold(BotContext& ctx, const Task* current, bool follow
     const auto& rules = ctx.p.skills.rules;
     if (!ctx.act.IsHeld(h.key)) {
         // Input was released elsewhere (gate hold, focus loss, stop): just forget it.
-        ctx.log.Add(LogCat::Combat, "Hold of \"%s\" ended: input was released", h.label.c_str());
+        ctx.log.Add(LogCat::Combat, TrF("log_skill_hold_ended", {{"rule", h.label}}));
         m_hold = Hold{};
         return false;
     }
     const SkillRule* r = h.rule < rules.size() ? &rules[h.rule] : nullptr;
     if (r && (r->key != h.key || r->label != h.label)) r = nullptr;   // the rule list was edited
     const char* stop = nullptr;
-    if (!r || !r->enabled) stop = "the rule changed";
-    else if (!followPath) stop = "a task took over";
-    else if (current && !current->AllowsCasts(ClassOf(r->kind))) stop = "not allowed now";
-    else if (!ctx.w.self.valid || ctx.w.self.dead) stop = "character dead or not readable";
-    else if (ctx.now >= h.untilMs) stop = "done";
-    else if (h.needsCursor && ctx.cursorBusy) stop = "another plugin took the cursor";
+    if (!r || !r->enabled) stop = Key("skill_stop_rule_changed");
+    else if (!followPath) stop = Key("skill_stop_task");
+    else if (current && !current->AllowsCasts(ClassOf(r->kind))) stop = Key("skill_stop_not_allowed");
+    else if (!ctx.w.self.valid || ctx.w.self.dead) stop = Key("skill_stop_dead");
+    else if (ctx.now >= h.untilMs) stop = Key("skill_release_done");
+    else if (h.needsCursor && ctx.cursorBusy) stop = Key("skill_stop_cursor");
     else if (h.channel && h.needsCursor && ctx.now >= h.minUntilMs) {
         RuleTarget t;
         Reason why;
         if (!ResolveTarget(*r, m_facts, m_tctx, t, why)) {
-            stop = "target gone";
+            stop = Key("skill_stop_target_gone");
         } else {
             if (Dist(t.screen, h.aimScreen) > 6.f && ctx.act.MoveCursor(t.screen) == ActResult::Ok) h.aimScreen = t.screen;
             h.targetGrid = t.grid;
         }
     }
     if (stop) {
-        if (r) {
-            Reason why;
-            why.Set("released: %s", stop);
-            SetWhy(h.rule, why.text);
-        }
+        if (r) SetWhy(h.rule, TrF("skill_why_released", {{"why", Tr(stop)}}));
         ReleaseHold(ctx, stop);
         return false;
     }
     // Still holding: stand still, keep the cursor ours.
     if (ctx.mover.IsMoving() || ctx.act.MoveKeyHeld()) ctx.mover.Stop(ctx.act);
     if (h.needsCursor) ctx.act.MarkCursorBusy(150);
-    Reason why;
-    why.Set("holding (%llu ms left)", static_cast<unsigned long long>(h.untilMs - ctx.now));
-    SetWhy(h.rule, why.text);
+    SetWhy(h.rule, TrF("skill_why_holding", {{"ms", Num("%llu", static_cast<unsigned long long>(h.untilMs - ctx.now))}}));
+    const LocText waiting = Tr("skill_why_other_holds");
     for (size_t i = 0; i < m_whyNot.size(); ++i)
-        if (i != h.rule) m_whyNot[i].assign("waiting: another rule holds its key");
-    if (h.aim == AimKind::Monster) ctx.report.markers.push_back({h.targetGrid, kMarkerColor, "cast"});
+        if (i != h.rule) m_whyNot[i] = waiting;
+    if (h.aim == AimKind::Monster) ctx.report.markers.push_back({h.targetGrid, kMarkerColor, Key("marker_cast")});
     return true;
 }
 
@@ -357,10 +353,8 @@ bool SkillEngine::Fire(BotContext& ctx, size_t index, const RuleTarget& t) {
     }
 
     if (res != ActResult::Ok) {
-        Reason why;
-        why.Set("ready, but the press failed (%s)", ActResultName(res));
-        SetWhy(index, why.text);
-        ctx.log.Add(LogCat::Combat, "Cast \"%s\" failed: %s", r.label.c_str(), ActResultName(res));
+        SetWhy(index, TrF("skill_why_press_failed", {{"why", Tr(ActResultName(res))}}));
+        ctx.log.Add(LogCat::Combat, TrF("log_cast_failed", {{"rule", r.label}, {"why", Tr(ActResultName(res))}}));
         m_nextCastMs = ctx.now + static_cast<uint64_t>(kFailBackoffMs);
         return false;
     }
@@ -370,13 +364,14 @@ bool SkillEngine::Fire(BotContext& ctx, size_t index, const RuleTarget& t) {
                    static_cast<uint64_t>(act.Random().UniformInt(0, act.Gate().JitterMs()));
     m_lastRule = r.label;
     ctx.mem.currentRule = r.label;
-    SetWhy(index, longPress ? "fired (holding)" : "fired");
+    SetWhy(index, longPress ? Tr("skill_why_fired_holding") : Tr("skill_why_fired"));
     if (t.aim == AimKind::Monster) {
-        ctx.report.markers.push_back({t.grid, kMarkerColor, "cast"});
-        ctx.log.Add(LogCat::Combat, "Cast \"%s\" at a %s monster", r.label.c_str(), RarityName(t.rarity));
+        ctx.report.markers.push_back({t.grid, kMarkerColor, Key("marker_cast")});
+        ctx.log.Add(LogCat::Combat, TrF("log_cast_monster", {{"rule", r.label}, {"rarity", Tr(RarityName(t.rarity))}}));
     } else {
         const char* where = AimText(t);
-        ctx.log.Add(LogCat::Combat, "Cast \"%s\"%s%s", r.label.c_str(), where[0] ? " " : "", where);
+        if (where[0]) ctx.log.Add(LogCat::Combat, TrF("log_cast_aim", {{"rule", r.label}, {"aim", Tr(where)}}));
+        else ctx.log.Add(LogCat::Combat, TrF("log_cast", {{"rule", r.label}}));
     }
     return true;
 }
@@ -391,8 +386,9 @@ bool SkillEngine::TryCast(BotContext& ctx, const Task* current) {
     if (w.self.valid) m_motion.Add(ctx.now, w.self.grid, w.gate.areaCounter);
 
     if (!sk.enabled) {
-        if (m_hold.active) ReleaseHold(ctx, "skill rules turned off");
-        for (auto& s : m_whyNot) s.assign("skill rules are off");
+        if (m_hold.active) ReleaseHold(ctx, Key("skill_release_rules_off"));
+        const LocText off = Tr("skill_why_rules_off");
+        for (auto& s : m_whyNot) s = off;
         return false;
     }
     SetRequests(ctx.req, sk);
@@ -418,10 +414,9 @@ bool SkillEngine::TryCast(BotContext& ctx, const Task* current) {
             if (chosen < 0) {
                 chosen = static_cast<int>(i);
                 chosenTarget = target;
-                SetWhy(i, "ready");
+                SetWhy(i, Tr("skill_why_ready"));
             } else {
-                why.Set("ready (rule %d comes first)", chosen + 1);
-                SetWhy(i, why.text);
+                SetWhy(i, TrF("skill_why_ready_later", {{"rule", Num("%d", chosen + 1)}}));
             }
         } else {
             SetWhy(i, why.text);
@@ -430,16 +425,15 @@ bool SkillEngine::TryCast(BotContext& ctx, const Task* current) {
     if (chosen < 0) return false;
     const size_t c = static_cast<size_t>(chosen);
     if (ctx.now < m_nextCastMs) {
-        why.Set("ready: global cast gate (%llu ms)", static_cast<unsigned long long>(m_nextCastMs - ctx.now));
-        SetWhy(c, why.text);
+        SetWhy(c, TrF("skill_why_ready_gate", {{"ms", Num("%llu", static_cast<unsigned long long>(m_nextCastMs - ctx.now))}}));
         return false;
     }
     if (!ctx.act.GateReady()) {
-        SetWhy(c, "ready: waiting for the input gate");
+        SetWhy(c, Tr("skill_why_ready_input_gate"));
         return false;
     }
     if (!ctx.act.CanAct()) {
-        SetWhy(c, "ready: the game window is not in front");
+        SetWhy(c, Tr("skill_why_ready_not_front"));
         return false;
     }
     return Fire(ctx, c, chosenTarget);

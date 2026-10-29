@@ -4,6 +4,7 @@
 // No SDK: tests/test_death.cpp.
 #pragma once
 
+#include "../core/LocText.h"
 #include "DeathSettings.h"
 
 #include <cmath>
@@ -26,14 +27,14 @@ inline constexpr const char* kSpectate = "spectate_button";  // never pressed (r
 inline constexpr int kDeathScreenDepth = 12;   // search depth below the game UI root
 inline constexpr int kButtonDepth = 6;         // search depth below death_screen
 
-// Readable names for logs and the probe.
+// Readable names for logs and the probe: keys (lang/en.json).
 inline const char* ButtonLabel(const char* controlName) {
     const std::string n = controlName ? controlName : "";
-    if (n == kRespawnAtCheckpoint) return "Respawn at checkpoint";
-    if (n == kReviveAtCheckpoint) return "Revive at checkpoint";
-    if (n == kRespawn) return "Respawn (generic)";
-    if (n == kSpectate) return "Spectate";
-    return "?";
+    if (n == kRespawnAtCheckpoint) return Key("death_button_respawn_cp");
+    if (n == kReviveAtCheckpoint) return Key("death_button_revive_cp");
+    if (n == kRespawn) return Key("death_button_respawn");
+    if (n == kSpectate) return Key("death_button_spectate");
+    return Key("common_unknown");
 }
 
 // The buttons to try, in order; the first VISIBLE one is pressed.
@@ -69,25 +70,21 @@ inline bool RectClickable(float x, float y, float w, float h, int screenW, int s
 
 // After a death was counted: whether a limit stops the bot, and why.
 struct LimitVerdict {
-    bool        stop = false;
-    std::string reason;
+    bool    stop = false;
+    LocText reason;   // death_limit_map / death_limit_session with {deaths} and {limit}
 };
 
 inline LimitVerdict CheckDeathLimits(int deathsMap, int deathsSession, bool diedInMap, const DeathSettings& s) {
     LimitVerdict v;
-    char buf[128];
     if (diedInMap && s.maxDeathsPerMap > 0 && deathsMap >= s.maxDeathsPerMap) {
-        std::snprintf(buf, sizeof(buf), "Died %d %s in this map (limit %d)", deathsMap, deathsMap == 1 ? "time" : "times",
-                      s.maxDeathsPerMap);
         v.stop = true;
-        v.reason = buf;
+        v.reason = TrF("death_limit_map", {{"deaths", std::to_string(deathsMap)}, {"limit", std::to_string(s.maxDeathsPerMap)}});
         return v;
     }
     if (s.maxDeathsPerSession > 0 && deathsSession >= s.maxDeathsPerSession) {
-        std::snprintf(buf, sizeof(buf), "Died %d %s since Start (limit %d)", deathsSession,
-                      deathsSession == 1 ? "time" : "times", s.maxDeathsPerSession);
         v.stop = true;
-        v.reason = buf;
+        v.reason = TrF("death_limit_session",
+                       {{"deaths", std::to_string(deathsSession)}, {"limit", std::to_string(s.maxDeathsPerSession)}});
     }
     return v;
 }

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../common/JsonUtil.h"
+#include "../core/LocText.h"
 
 #include <algorithm>
 #include <string>
@@ -50,18 +51,19 @@ inline const char* RuleKindName(RuleKind k) {
     return "?";
 }
 
+// The target mode's key (lang/en.json): the Skills tab's target list.
 inline const char* TargetModeName(TargetMode t) {
     switch (t) {
-        case TargetMode::NearestEnemy:    return "Nearest enemy";
-        case TargetMode::StrongestEnemy:  return "Strongest enemy";
-        case TargetMode::LowestHpEnemy:   return "Lowest HP enemy";
-        case TargetMode::DensestCluster:  return "Densest cluster";
-        case TargetMode::Leader:          return "Leader";
-        case TargetMode::Self:            return "Self";
-        case TargetMode::CursorUnchanged: return "Cursor unchanged";
+        case TargetMode::NearestEnemy:    return Key("skill_target_nearest");
+        case TargetMode::StrongestEnemy:  return Key("skill_target_strongest");
+        case TargetMode::LowestHpEnemy:   return Key("skill_target_lowest_life");
+        case TargetMode::DensestCluster:  return Key("skill_target_densest");
+        case TargetMode::Leader:          return Key("skill_target_leader");
+        case TargetMode::Self:            return Key("skill_target_self");
+        case TargetMode::CursorUnchanged: return Key("skill_target_cursor");
         case TargetMode::Count:           break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 inline const char* CombatWhenName(CombatWhen w) {

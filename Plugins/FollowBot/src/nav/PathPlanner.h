@@ -49,7 +49,7 @@ enum class PlanStatus : uint8_t {
     Unreachable     // no path; not retried until the backoff ends
 };
 
-const char* PlanStatusName(PlanStatus s);
+const char* PlanStatusName(PlanStatus s);   // the status's key (lang/en.json)
 
 // The planner's memory the replan decision looks at.
 struct PlannerState {

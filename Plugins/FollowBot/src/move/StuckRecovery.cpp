@@ -14,25 +14,25 @@ namespace fb {
 
 const char* StuckCauseName(StuckCause c) {
     switch (c) {
-        case StuckCause::None:         return "none";
-        case StuckCause::Displacement: return "not moving";
-        case StuckCause::NoProgress:   return "no progress";
+        case StuckCause::None:         return Key("stuck_cause_none");
+        case StuckCause::Displacement: return Key("stuck_cause_not_moving");
+        case StuckCause::NoProgress:   return Key("stuck_cause_no_progress");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 const char* RecoveryStepName(RecoveryStep s) {
     switch (s) {
-        case RecoveryStep::None:        return "none";
-        case RecoveryStep::RepathBlock: return "repath around the cell ahead";
-        case RecoveryStep::SideStep:    return "side-step";
-        case RecoveryStep::Door:        return "click a door";
-        case RecoveryStep::Backtrack:   return "backtrack";
-        case RecoveryStep::Dodge:       return "dodge roll";
-        case RecoveryStep::EscapeProbe: return "escape probe";
-        case RecoveryStep::GiveUp:      return "give up";
+        case RecoveryStep::None:        return Key("stuck_step_none");
+        case RecoveryStep::RepathBlock: return Key("stuck_step_repath");
+        case RecoveryStep::SideStep:    return Key("stuck_step_side_step");
+        case RecoveryStep::Door:        return Key("stuck_step_door");
+        case RecoveryStep::Backtrack:   return Key("stuck_step_backtrack");
+        case RecoveryStep::Dodge:       return Key("stuck_step_dodge");
+        case RecoveryStep::EscapeProbe: return Key("stuck_step_escape");
+        case RecoveryStep::GiveUp:      return Key("stuck_step_give_up");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 // ---------------------------------------------------------------------------
@@ -246,8 +246,10 @@ bool StuckRecovery::StartStep(const World& w, Mover& mover, PathPlanner& planner
     m_step = m_ladder.Next(o);
     m_stepSteers = false;
     const Vec2 dir = PathDirection(w, planner, goal);
-    log.Add(LogCat::Stuck, "Stuck (%s) at (%.0f, %.0f): %s", StuckCauseName(m_detector.Cause()), w.self.grid.x,
-            w.self.grid.y, RecoveryStepName(m_step));
+    log.Add(LogCat::Stuck, TrF("log_stuck", {{"cause", Tr(StuckCauseName(m_detector.Cause()))},
+                                             {"x", Num("%.0f", w.self.grid.x)},
+                                             {"y", Num("%.0f", w.self.grid.y)},
+                                             {"step", Tr(RecoveryStepName(m_step))}}));
     switch (m_step) {
         case RecoveryStep::RepathBlock: {
             const Vec2 ahead = w.self.grid + dir * 3.f;
@@ -268,7 +270,9 @@ bool StuckRecovery::StartStep(const World& w, Mover& mover, PathPlanner& planner
             Vec2 screen;
             if (door && ProjectLifted(w.proj, door->world, door->modelHeight * 0.5f, screen) && OnScreen(w.proj, screen, 4.f)) {
                 act.WorldClick(screen, 120, 50, VK_LBUTTON, nullptr, 0);
-                log.Add(LogCat::Stuck, "Clicked door %u at (%.0f, %.0f)", door->id, door->grid.x, door->grid.y);
+                log.Add(LogCat::Stuck, TrF("log_stuck_door", {{"id", Num("%u", door->id)},
+                                                              {"x", Num("%.0f", door->grid.x)},
+                                                              {"y", Num("%.0f", door->grid.y)}}));
             }
             planner.RequestReplan();
             m_stepUntilMs = now + 400;   // let it open
@@ -283,7 +287,7 @@ bool StuckRecovery::StartStep(const World& w, Mover& mover, PathPlanner& planner
             m_dodgeAnimAtPress = w.self.animationId;
             const ActResult r = mover.Dodge(w, dir, act);
             m_dodgeCheckUntil = now + 400;
-            if (r != ActResult::Ok) log.Add(LogCat::Stuck, "Dodge not sent (%s)", ActResultName(r));
+            if (r != ActResult::Ok) log.Add(LogCat::Stuck, TrF("log_stuck_dodge_not_sent", {{"why", Tr(ActResultName(r))}}));
             m_stepUntilMs = now + 450;
             return true;
         }
@@ -306,10 +310,10 @@ RecoveryState StuckRecovery::Tick(const World& w, Mover& mover, PathPlanner& pla
     if (m_step != RecoveryStep::None && m_step != RecoveryStep::GiveUp) {
         if (m_step == RecoveryStep::Dodge && m_dodgeCheckUntil != 0) {
             if (w.self.animationId != m_dodgeAnimAtPress) {
-                log.Add(LogCat::Stuck, "Dodge started (animation %d)", w.self.animationId);
+                log.Add(LogCat::Stuck, TrF("log_stuck_dodge_started", {{"animation", Num("%d", w.self.animationId)}}));
                 m_dodgeCheckUntil = 0;
             } else if (now >= m_dodgeCheckUntil) {
-                log.Add(LogCat::Stuck, "Dodge did not start (swallowed)");
+                log.Add(LogCat::Stuck, Tr("log_stuck_dodge_swallowed"));
                 m_dodgeCheckUntil = 0;
             }
         }
@@ -338,7 +342,7 @@ RecoveryState StuckRecovery::Tick(const World& w, Mover& mover, PathPlanner& pla
         const bool moving = active && m_detector.MovedWithin(now, m_cfg.detect.windowMs) >= m_cfg.detect.minDisplacement * 2.f;
         if (!moving) m_goodSinceMs = now;
         else if (m_ladder.Index() > 0 && now - m_goodSinceMs >= static_cast<uint64_t>(m_cfg.ladderResetMs)) {
-            log.Add(LogCat::Stuck, "Moving freely again: recovery ladder reset");
+            log.Add(LogCat::Stuck, Tr("log_stuck_ladder_reset"));
             m_ladder.Reset();
         }
         return RecoveryState::Normal;
@@ -350,7 +354,7 @@ RecoveryState StuckRecovery::Tick(const World& w, Mover& mover, PathPlanner& pla
     if (!StartStep(w, mover, planner, act, log, goal, now)) {
         m_gaveUp = true;
         mover.Stop(act);
-        log.Add(LogCat::Stuck, "Recovery exhausted: giving up this goal");
+        log.Add(LogCat::Stuck, Tr("log_stuck_gave_up"));
         return RecoveryState::GaveUp;
     }
     return m_step == RecoveryStep::RepathBlock ? RecoveryState::Normal : RecoveryState::Recovering;

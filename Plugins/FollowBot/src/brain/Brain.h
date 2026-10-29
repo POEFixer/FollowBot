@@ -24,6 +24,7 @@
 #include "Task.h"
 
 #include <string>
+#include <vector>
 
 namespace fb {
 
@@ -43,7 +44,7 @@ struct BrainInputs {
 struct BrainOutput {
     GateReason  gate = GateReason::None;
     bool        stopBot = false;         // the plugin must stop (limit reached, death limit, ...)
-    std::string stopReason;
+    LocText     stopReason;
 };
 
 class Brain {
@@ -59,8 +60,9 @@ public:
     const char* ActiveTaskName() const { return m_exclusive ? m_exclusive->Name() : ""; }
     // A debug walk runs or waits to start (input is allowed for it while stopped).
     bool DebugWalkActive() const { return m_exclusive == &m_walk || m_pendingWalk >= 0; }
-    const std::string& DebugResult() const { return m_debugResult; }
-    void SetDebugResult(std::string s) { m_debugResult = std::move(s); }
+    // The last debug-tool result, one entry per line.
+    const std::vector<LocText>& DebugResult() const { return m_debugResult; }
+    void SetDebugResult(std::vector<LocText> lines) { m_debugResult = std::move(lines); }
 
     const FollowTask&  Follow() const { return m_follow; }
     const SkillEngine& Skills() const { return m_skills; }
@@ -91,7 +93,7 @@ private:
     int         m_exitTries = 0;           // emergency exit: /exit attempts the action gate deferred
     std::string m_lastMapId;               // the map instance the per-map death count belongs to
     std::string m_lastMapHash;
-    std::string m_debugResult;
+    std::vector<LocText> m_debugResult;
 };
 
 }  // namespace fb

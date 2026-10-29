@@ -16,7 +16,7 @@ void WorldClick::Start(const WorldClickTarget& target, const WorldClickParams& p
     m_phase = Phase::Approach;
     m_startMs = now;
     m_settleMs = 0;
-    m_fail.clear();
+    m_fail = "";
 }
 
 void WorldClick::Abort(BotContext& ctx) {
@@ -27,8 +27,8 @@ void WorldClick::Abort(BotContext& ctx) {
 WorldClickStatus WorldClick::Fail(BotContext& ctx, const char* why) {
     ctx.mover.Stop(ctx.act);
     m_phase = Phase::Failed;
-    m_fail = why;
-    ctx.log.Add(LogCat::Task, "Click on object %u failed: %s", m_target.id, why);
+    m_fail = why ? why : "";
+    ctx.log.Add(LogCat::Task, TrF("log_click_failed", {{"id", Num("%u", m_target.id)}, {"why", Tr(m_fail)}}));
     return WorldClickStatus::Failed;
 }
 
@@ -42,7 +42,8 @@ WorldClickStatus WorldClick::Tick(BotContext& ctx) {
         case Phase::Failed:
             return WorldClickStatus::Failed;
         case Phase::Approach: {
-            if (ctx.now - m_startMs > static_cast<uint64_t>(m_params.approachTimeoutMs)) return Fail(ctx, "approach timed out");
+            if (ctx.now - m_startMs > static_cast<uint64_t>(m_params.approachTimeoutMs))
+                return Fail(ctx, Key("click_fail_timeout"));
             const float dist = Dist(w.self.grid, m_target.grid);
             ctx.report.hasTarget = true;
             ctx.report.target = m_target.grid;
@@ -60,16 +61,16 @@ WorldClickStatus WorldClick::Tick(BotContext& ctx) {
                 return WorldClickStatus::Running;
             }
             const PlanStatus ps = ctx.planner.Update(w.self.grid, m_target.grid, ctx.now);
-            if (ps == PlanStatus::Unreachable) return Fail(ctx, "object unreachable");
+            if (ps == PlanStatus::Unreachable) return Fail(ctx, Key("click_fail_unreachable"));
             const RecoveryState rs = ctx.stuck.Tick(w, ctx.mover, ctx.planner, ctx.act, ctx.log, m_target.grid,
                                                     m_params.interactRange, true, ctx.now);
             if (rs == RecoveryState::GaveUp) {
                 ctx.stuck.Reset(ctx.now);
-                return Fail(ctx, "stuck on the way");
+                return Fail(ctx, Key("click_fail_stuck"));
             }
             if (rs == RecoveryState::Recovering) return WorldClickStatus::Running;
             const MoveStatus ms = ctx.mover.Steer(w, ctx.planner.Path(), m_target.grid, ctx.act, &ctx.planner, ctx.now);
-            if (ms == MoveStatus::NoKey) return Fail(ctx, "no move key set");
+            if (ms == MoveStatus::NoKey) return Fail(ctx, Key("click_fail_no_move_key"));
             return WorldClickStatus::Running;
         }
         case Phase::Settle: {
@@ -95,7 +96,7 @@ WorldClickStatus WorldClick::Tick(BotContext& ctx) {
             } else {
                 ok = ProjectLifted(w.proj, m_target.world, m_target.modelHeight * m_params.heightFactor, screen);
             }
-            if (!ok || !OnScreen(w.proj, screen, 4.f)) return Fail(ctx, "object not on screen");
+            if (!ok || !OnScreen(w.proj, screen, 4.f)) return Fail(ctx, Key("click_fail_off_screen"));
             std::function<bool()> verify;
             if (ctx.hooks.isTargeted && m_target.targetableAddr != 0) {
                 const uintptr_t addr = m_target.targetableAddr;
@@ -106,7 +107,9 @@ WorldClickStatus WorldClick::Tick(BotContext& ctx) {
                                                    m_params.reHovers);
             if (r == ActResult::Ok) {
                 m_phase = Phase::Done;
-                ctx.log.Add(LogCat::Task, "Clicked object %u at (%.0f, %.0f)", m_target.id, m_target.grid.x, m_target.grid.y);
+                ctx.log.Add(LogCat::Task, TrF("log_clicked_object", {{"id", Num("%u", m_target.id)},
+                                                                     {"x", Num("%.0f", m_target.grid.x)},
+                                                                     {"y", Num("%.0f", m_target.grid.y)}}));
                 return WorldClickStatus::Clicked;
             }
             if (r == ActResult::NotReady || r == ActResult::CursorBusy) return WorldClickStatus::Running;

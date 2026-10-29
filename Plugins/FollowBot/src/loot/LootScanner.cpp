@@ -1,6 +1,6 @@
 // LootScanner.cpp - the PluginSDK side of the loot scanner: reads the inner
-// item of a ground WorldItem and asks the host price list. Everything else is
-// the pure core in LootScanCore.h.
+// item of a ground WorldItem and asks the host price list (by item on POEFixer
+// 371+, else by name). Everything else is the pure core in LootScanCore.h.
 // FB_TESTS_EXCLUDE: adapter (includes PluginSDK.h); the unit tests link their own LootScanner::Update.
 #include "LootScanner.h"
 
@@ -52,6 +52,23 @@ public:
         const PluginSDK::PriceResult r = m_sdk.Prices.LookupPrice(name);
         if (!r.found) return false;
         out.found = true;
+        out.chaos = r.chaos;
+        out.divine = r.divine;
+        out.exalt = r.exalt;
+        out.category = r.category;
+        return true;
+    }
+
+    bool CanPriceByItem() override { return m_sdk.Prices.CanLookupByItem(); }
+
+    bool LookupPriceByItem(uintptr_t worldItemAddr, PriceQuote& out) override {
+        if (worldItemAddr == 0) return false;
+        // The host reads the item inside a WorldItem itself.
+        std::string english;
+        const PluginSDK::PriceResult r = m_sdk.Prices.LookupPriceByItem(worldItemAddr, &english);
+        if (english.empty()) return false;   // not read (or an older host): the caller asks by name
+        out = PriceQuote{};
+        out.found = r.found;
         out.chaos = r.chaos;
         out.divine = r.divine;
         out.exalt = r.exalt;

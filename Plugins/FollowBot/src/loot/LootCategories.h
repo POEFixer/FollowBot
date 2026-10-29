@@ -65,6 +65,6 @@ const ItemPathRule* ItemPathRules(size_t& count);
 const ItemCategory* LootCategoryDisplayOrder(size_t& count);
 
 // One line of what a category holds (settings tab tooltips).
-const char* LootCategoryHint(ItemCategory c);
+const char* LootCategoryHint(ItemCategory c);   // the category's tooltip key (lang/en.json)
 
 }  // namespace fb

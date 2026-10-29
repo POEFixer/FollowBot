@@ -69,7 +69,7 @@ enum class ActResult : uint8_t {
     Refused      // not allowed now (e.g. chat while a UI task runs) or bad arguments
 };
 
-const char* ActResultName(ActResult r);
+const char* ActResultName(ActResult r);   // the result's key (lang/en.json)
 
 struct ActuatorConfig {
     int   gateMinMs = 100;
@@ -153,7 +153,7 @@ public:
     uint64_t EventCount() const { return m_events; }
 
 private:
-    ActResult Abort(const char* why);
+    ActResult Abort(const char* why);   // `why`: a key (lang/en.json) for the log
     void      Track(int vk, bool down);
     POINT     ToPoint(const Vec2& v) const;
 

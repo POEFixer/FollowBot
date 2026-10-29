@@ -31,18 +31,19 @@ enum PortalKind : int {
     kPortalToChildArea = 7,
 };
 
+// The portal kind's key (lang/en.json).
 inline const char* PortalKindName(int v) {
     switch (v) {
-        case kPortalUnknown:       return "unknown kind";
-        case kPortalUninitialised: return "not set up";
-        case kPortalPlayer:        return "player portal";
-        case kPortalTown:          return "town portal";
-        case kPortalMapDevice:     return "map device portal";
-        case kPortalMapReturn:     return "map return portal";
-        case kPortalCampTeleport:  return "camp teleport";
-        case kPortalToParentArea:  return "portal to the parent area";
-        case kPortalToChildArea:   return "portal to a sub-area";
-        default:                   return "implausible kind";
+        case kPortalUnknown:       return Key("portal_kind_unknown");
+        case kPortalUninitialised: return Key("portal_kind_not_set_up");
+        case kPortalPlayer:        return Key("portal_kind_player");
+        case kPortalTown:          return Key("portal_kind_town");
+        case kPortalMapDevice:     return Key("portal_kind_map_device");
+        case kPortalMapReturn:     return Key("portal_kind_map_return");
+        case kPortalCampTeleport:  return Key("portal_kind_camp");
+        case kPortalToParentArea:  return Key("portal_kind_parent");
+        case kPortalToChildArea:   return Key("portal_kind_child");
+        default:                   return Key("portal_kind_implausible");
     }
 }
 
@@ -82,13 +83,14 @@ inline bool KindEnabled(VanishKind k, const TravelSettings& s) {
     }
 }
 
-// The setting that switches a vanish kind off (for "not followed" reasons).
+// The setting that switches a vanish kind off (for "not followed" reasons): the
+// key of its Travel tab checkbox.
 inline const char* KindSettingName(VanishKind k) {
     switch (k) {
-        case VanishKind::Transition: return "Area transitions";
-        case VanishKind::BossArena:  return "Boss arenas";
-        case VanishKind::Portal:     return "Portals";
-        default:                     return "-";
+        case VanishKind::Transition: return Key("travel_follow_transitions");
+        case VanishKind::BossArena:  return Key("travel_follow_arenas");
+        case VanishKind::Portal:     return Key("travel_follow_portals");
+        default:                     return Key("common_none");
     }
 }
 

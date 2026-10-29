@@ -124,10 +124,10 @@ void FollowBotPlugin::DrawOverlay() {
             }
         } else if (v.leaderDistance >= 0.f) {
             p.Ring(v.leaderLastGrid, 2.5f, kColLast, 2.0f);
-            char lbl[96];
-            std::snprintf(lbl, sizeof(lbl), "last seen%s%s", v.vanish != VanishKind::None ? ": " : "",
-                          v.vanish != VanishKind::None ? VanishKindName(v.vanish) : "");
-            p.Label(v.leaderLastGrid, kColLast, lbl);
+            const std::string lbl = v.vanish != VanishKind::None
+                                        ? I18n::TrF("overlay_last_seen_kind", {{"kind", I18n::Tr(VanishKindName(v.vanish))}})
+                                        : std::string(I18n::Tr("overlay_last_seen"));
+            p.Label(v.leaderLastGrid, kColLast, lbl.c_str());
         }
     }
     if (d.showRoute && v.leaderRoute.size() >= 2) p.Polyline(v.leaderRoute, kColRoute, 1.0f);
@@ -136,16 +136,19 @@ void FollowBotPlugin::DrawOverlay() {
             if (Dist(it.grid, v.selfGrid) > 120.f) continue;
             const ImU32 col = it.visibleNow ? kColObject : IM_COL32(120, 180, 255, 120);
             p.Dot(it.grid, 4.f, col);
-            char lbl[64];
-            if (it.portalType >= 0) std::snprintf(lbl, sizeof(lbl), "%s (%d)", InteractKindName(it.kind), it.portalType);
-            else std::snprintf(lbl, sizeof(lbl), "%s", InteractKindName(it.kind));
-            p.Label(it.grid, col, lbl);
+            if (it.portalType >= 0) {
+                const std::string lbl = I18n::TrF("overlay_object_type", {{"kind", I18n::Tr(InteractKindName(it.kind))},
+                                                                          {"type", Num("%d", it.portalType)}});
+                p.Label(it.grid, col, lbl.c_str());
+            } else {
+                p.Label(it.grid, col, I18n::Tr(InteractKindName(it.kind)));
+            }
         }
     }
     if (d.showLoot) {
         for (const auto& m : v.markers) {
             p.Dot(m.grid, 4.f, m.color);
-            if (!m.label.empty()) p.Label(m.grid, m.color, m.label.c_str());
+            if (m.label && m.label[0]) p.Label(m.grid, m.color, I18n::Tr(m.label));
         }
     }
     if (d.showCombat) {
@@ -172,24 +175,26 @@ void FollowBotPlugin::DrawStatusWindow() {
     ImFont* font = ImGui::GetFont();
     const float fs = ImGui::GetFontSize() * scale;
 
-    char lines[6][192];
-    int n = 0;
-    std::snprintf(lines[n++], sizeof(lines[0]), "Follow Bot: %s", v.paused ? "Paused" : v.mode.c_str());
-    if (!v.taskDetail.empty()) std::snprintf(lines[n++], sizeof(lines[0]), "%s", v.taskDetail.c_str());
+    std::vector<std::string> lines;
+    lines.push_back(I18n::TrF("status_title", {{"mode", v.paused ? I18n::Tr("header_paused") : ui::KeyText(v.mode)}}));
+    if (!v.taskDetail.empty()) lines.push_back(ui::Text(v.taskDetail));
     if (v.leaderConfigured) {
         if (v.leaderVisible)
-            std::snprintf(lines[n++], sizeof(lines[0]), "Leader %s: %.0f cells", v.leaderName.c_str(), v.leaderDistance);
+            lines.push_back(I18n::TrF("status_leader_cells", {{"name", v.leaderName}, {"cells", Num("%.0f", v.leaderDistance)}}));
         else
-            std::snprintf(lines[n++], sizeof(lines[0]), "Leader %s: %s", v.leaderName.c_str(),
-                          v.vanish != VanishKind::None ? VanishKindName(v.vanish) : "not in sight");
+            lines.push_back(I18n::TrF("status_leader_state",
+                                      {{"name", v.leaderName},
+                                       {"state", v.vanish != VanishKind::None ? I18n::Tr(VanishKindName(v.vanish))
+                                                                              : I18n::Tr("travel_diag_not_in_sight")}}));
     }
-    if (!v.currentRule.empty()) std::snprintf(lines[n++], sizeof(lines[0]), "Skill: %s", v.currentRule.c_str());
+    if (!v.currentRule.empty()) lines.push_back(I18n::TrF("status_skill", {{"rule", ui::RuleLabel(v.currentRule)}}));
     if (v.deathsSession > 0)
-        std::snprintf(lines[n++], sizeof(lines[0]), "Deaths: %d (map) / %d", v.deathsMap, v.deathsSession);
-    if (!v.lastError.empty() && n < 6) std::snprintf(lines[n++], sizeof(lines[0]), "%s", v.lastError.c_str());
+        lines.push_back(I18n::TrF("status_deaths", {{"map", Num("%d", v.deathsMap)}, {"session", Num("%d", v.deathsSession)}}));
+    if (!v.lastError.empty()) lines.push_back(ui::Text(v.lastError));
+    const int n = static_cast<int>(lines.size());
 
     float w = 0.f;
-    for (int i = 0; i < n; ++i) w = (std::max)(w, font->CalcTextSizeA(fs, 10000.f, 0.f, lines[i]).x);
+    for (int i = 0; i < n; ++i) w = (std::max)(w, font->CalcTextSizeA(fs, 10000.f, 0.f, lines[static_cast<size_t>(i)].c_str()).x);
     const ImVec2 pad = PluginUi::PanelPadding();
     const float lineH = fs * 1.2f;
     const ImVec2 size(w + pad.x * 2.f, lineH * static_cast<float>(n) + pad.y * 2.f);
@@ -207,6 +212,7 @@ void FollowBotPlugin::DrawStatusWindow() {
     for (int i = 0; i < n; ++i) {
         ImU32 col = IM_COL32(230, 230, 230, 255);
         if (i == 0) col = v.paused || !v.gateReason.empty() ? IM_COL32(240, 190, 80, 255) : IM_COL32(120, 220, 140, 255);
-        PluginUi::TextOutlined(dl, font, fs, ImVec2(x + pad.x, y + pad.y + lineH * static_cast<float>(i)), col, lines[i]);
+        PluginUi::TextOutlined(dl, font, fs, ImVec2(x + pad.x, y + pad.y + lineH * static_cast<float>(i)), col,
+                               lines[static_cast<size_t>(i)].c_str());
     }
 }

@@ -35,7 +35,7 @@ struct ButtonHit {
 };
 
 // The first visible, clickable button of `order` below `screen`; `seen` lists
-// what was found but not usable (for the log).
+// the control names found without a clickable rectangle (for the log).
 bool FindButton(const PluginSDK::Context& sdk, uintptr_t screen, const death::ButtonOrder& order, int screenW,
                 int screenH, ButtonHit& hit, std::string& seen) {
     for (int i = 0; i < order.count; ++i) {
@@ -47,7 +47,6 @@ bool FindButton(const PluginSDK::Context& sdk, uintptr_t screen, const death::Bu
             !death::RectClickable(x, y, w, h, screenW, screenH)) {
             if (!seen.empty()) seen += ", ";
             seen += order.names[i];
-            seen += " (no clickable rectangle)";
             continue;
         }
         hit.addr = found.front();
@@ -78,8 +77,8 @@ void DeathTask::BeginDeath(BotContext& ctx) {
     m_clicks = 0;
     m_lastButton = nullptr;
     m_manualLogged = false;
-    ctx.log.Add(LogCat::Death, "Died in %s%s", m_areaId.empty() ? "this area" : m_areaId.c_str(),
-                m_inMap ? " (map)" : "");
+    const LocText area = m_areaId.empty() ? Tr("death_this_area") : TrF("text_verbatim", {{"text", m_areaId}});
+    ctx.log.Add(LogCat::Death, TrF(m_inMap ? Key("log_death_died_map") : Key("log_death_died"), {{"area", area}}));
 }
 
 void DeathTask::OnRevived(BotContext& ctx, bool byTask) {
@@ -91,7 +90,7 @@ void DeathTask::OnRevived(BotContext& ctx, bool byTask) {
             : 0.0;
     BotMemory& mem = ctx.mem;
     if (mem.startedMs == 0 || m_session != mem.startedMs) {
-        ctx.log.Add(LogCat::Death, "Alive again (that death happened before this Start: not counted)");
+        ctx.log.Add(LogCat::Death, Tr("log_death_not_counted"));
         return;
     }
     ++mem.deathsSession;
@@ -103,16 +102,24 @@ void DeathTask::OnRevived(BotContext& ctx, bool byTask) {
     ctx.stuck.Reset(ctx.now);
     ctx.planner.Clear();
     const bool byBot = byTask && !m_manualLogged && m_clicks > 0;
-    const char* how = !byTask          ? "respawned without the bot"
-                      : m_manualLogged ? "respawned manually"
-                      : byBot          ? "respawned by the bot"
-                                       : "revived";
-    ctx.log.Add(LogCat::Death, "Alive again after %.1f s (%s%s%s); deaths: %d in this map, %d since Start", secs, how,
-                byBot && m_lastButton ? ", " : "", byBot && m_lastButton ? death::ButtonLabel(m_lastButton) : "",
-                mem.deathsMap, mem.deathsSession);
+    const char* how = !byTask          ? Key("death_how_without_bot")
+                      : m_manualLogged ? Key("death_how_manual")
+                      : byBot          ? Key("death_how_bot")
+                                       : Key("death_how_revived");
+    if (byBot && m_lastButton)
+        ctx.log.Add(LogCat::Death, TrF("log_death_alive_button", {{"seconds", Num("%.1f", secs)},
+                                                                  {"how", Tr(how)},
+                                                                  {"button", Tr(death::ButtonLabel(m_lastButton))},
+                                                                  {"map", Num("%d", mem.deathsMap)},
+                                                                  {"session", Num("%d", mem.deathsSession)}}));
+    else
+        ctx.log.Add(LogCat::Death, TrF("log_death_alive", {{"seconds", Num("%.1f", secs)},
+                                                           {"how", Tr(how)},
+                                                           {"map", Num("%d", mem.deathsMap)},
+                                                           {"session", Num("%d", mem.deathsSession)}}));
     const death::LimitVerdict lv = death::CheckDeathLimits(mem.deathsMap, mem.deathsSession, m_inMap, ctx.p.death);
     if (lv.stop) {
-        ctx.log.Add(LogCat::Death, "Death limit reached: %s - stopping the bot", lv.reason.c_str());
+        ctx.log.Add(LogCat::Death, TrF("log_death_limit", {{"why", lv.reason}}));
         mem.RequestStop(lv.reason);
     }
 }
@@ -138,7 +145,8 @@ void DeathTask::Start(BotContext& ctx) {
         const int jitter = s.respawnJitterMs > 0 ? ctx.act.Random().UniformInt(0, s.respawnJitterMs) : 0;
         m_nextTryMs = ctx.now + static_cast<uint64_t>(s.respawnDelayMs + jitter);
         if (s.autoRespawn)
-            ctx.log.Add(LogCat::Death, "Respawning in %.1f s", static_cast<double>(s.respawnDelayMs + jitter) / 1000.0);
+            ctx.log.Add(LogCat::Death, TrF("log_death_respawning_in",
+                                           {{"seconds", Num("%.1f", static_cast<double>(s.respawnDelayMs + jitter) / 1000.0)}}));
     } else {
         // Resumed after a hold: next try after the retry interval.
         m_nextTryMs = ctx.now + static_cast<uint64_t>(s.retryIntervalMs);
@@ -150,15 +158,12 @@ void DeathTask::Abort(BotContext& ctx) {
     (void)ctx;
 }
 
-TaskStatus DeathTask::HoldManual(BotContext& ctx, const std::string& why, bool dumpHint) {
-    ctx.report.detail = "Dead - respawn manually (" + why + ")";
+TaskStatus DeathTask::HoldManual(BotContext& ctx, const LocText& why, bool dumpHint) {
+    ctx.report.detail = TrF("detail_death_manual", {{"why", why}});
     if (!m_manualLogged) {
         m_manualLogged = true;
-        ctx.log.Add(LogCat::Death, "Dead - respawn manually: %s%s", why.c_str(),
-                    dumpHint ? ". While dead, Debug -> \"Test death screen lookup\" (or \"Find UI by control name\" "
-                               "with death_screen) shows what the game offers"
-                             : "");
-        if (ctx.p.death.autoRespawn) ctx.mem.lastError = "Death: " + why + " - respawn manually";
+        ctx.log.Add(LogCat::Death, TrF(dumpHint ? Key("log_death_manual_hint") : Key("log_death_manual"), {{"why", why}}));
+        if (ctx.p.death.autoRespawn) ctx.mem.lastError = TrF("error_death_manual", {{"why", why}});
     }
     return TaskStatus::Running;
 }
@@ -173,33 +178,28 @@ TaskStatus DeathTask::Tick(BotContext& ctx) {
     }
     ctx.stuck.NoteIdle(w, ctx.now);
     if (!w.self.valid) {
-        ctx.report.detail = "Dead: waiting for the game";
+        ctx.report.detail = Tr("detail_death_waiting_game");
         return TaskStatus::Running;
     }
     if (!w.self.dead) return TaskStatus::Done;   // alive without a confirmed death (a short life-0 read)
 
-    if (!s.autoRespawn) return HoldManual(ctx, "automatic respawn is off", false);
+    if (!s.autoRespawn) return HoldManual(ctx, Tr("death_why_auto_off"), false);
     const PluginSDK::Context* sdk = ctx.sdk;
-    if (!HostCanFind(sdk))
-        return HoldManual(ctx, "this POEFixer cannot find UI elements by name; automatic respawn needs 365 or newer", false);
+    if (!HostCanFind(sdk)) return HoldManual(ctx, Tr("death_why_old_host"), false);
 
-    char buf[256];
+    const std::string tries = Num("%d", m_tries), maxTries = Num("%d", s.maxRetries);
     if (ctx.now < m_nextTryMs) {
         const double in = static_cast<double>(m_nextTryMs - ctx.now) / 1000.0;
-        if (m_clicks == 0) std::snprintf(buf, sizeof(buf), "Dead: respawning in %.1f s", in);
+        if (m_clicks == 0) ctx.report.detail = TrF("detail_death_respawning_in", {{"seconds", Num("%.1f", in)}});
         else
-            std::snprintf(buf, sizeof(buf), "Dead: clicked \"%s\", waiting (try %d of %d)",
-                          death::ButtonLabel(m_lastButton), m_tries, s.maxRetries);
-        ctx.report.detail = buf;
+            ctx.report.detail = TrF("detail_death_clicked_waiting", {{"button", Tr(death::ButtonLabel(m_lastButton))},
+                                                                     {"try", tries},
+                                                                     {"max", maxTries}});
         return TaskStatus::Running;
     }
-    if (m_tries >= s.maxRetries) {
-        std::snprintf(buf, sizeof(buf), "%d %s did not bring the character back", m_tries,
-                      m_tries == 1 ? "try" : "tries");
-        return HoldManual(ctx, buf, true);
-    }
+    if (m_tries >= s.maxRetries) return HoldManual(ctx, TrF("death_why_tries", {{"tries", tries}}), true);
     if (ctx.cursorBusy) {
-        ctx.report.detail = "Dead: waiting (another plugin is using the cursor)";
+        ctx.report.detail = Tr("detail_death_cursor_busy");
         return TaskStatus::Running;
     }
 
@@ -207,28 +207,24 @@ TaskStatus DeathTask::Tick(BotContext& ctx) {
     ++m_tries;
     m_nextTryMs = ctx.now + static_cast<uint64_t>(s.retryIntervalMs);
     const uintptr_t screen = FindVisibleDeathScreen(*sdk);
+    const std::string tryNow = Num("%d", m_tries);
     if (screen == 0) {
-        ctx.log.Add(LogCat::Death, "Respawn try %d of %d: no visible death screen (%s)", m_tries, s.maxRetries,
-                    death::kDeathScreen);
-        if (m_tries >= s.maxRetries) return HoldManual(ctx, "the death screen was not found", true);
-        std::snprintf(buf, sizeof(buf), "Dead: looking for the death screen (try %d of %d)", m_tries, s.maxRetries);
-        ctx.report.detail = buf;
+        ctx.log.Add(LogCat::Death, TrF("log_death_no_screen", {{"try", tryNow}, {"max", maxTries}, {"name", death::kDeathScreen}}));
+        if (m_tries >= s.maxRetries) return HoldManual(ctx, Tr("death_why_no_screen"), true);
+        ctx.report.detail = TrF("detail_death_looking", {{"try", tryNow}, {"max", maxTries}});
         return TaskStatus::Running;
     }
     const death::ButtonOrder order = death::RespawnButtonOrder(s);
     ButtonHit hit;
     std::string seen;
     if (!FindButton(*sdk, screen, order, w.gate.screenW, w.gate.screenH, hit, seen)) {
-        ctx.log.Add(LogCat::Death, "Respawn try %d of %d: the death screen shows none of the allowed buttons%s%s%s",
-                    m_tries, s.maxRetries, seen.empty() ? "" : " (", seen.c_str(), seen.empty() ? "" : ")");
+        if (seen.empty())
+            ctx.log.Add(LogCat::Death, TrF("log_death_no_button", {{"try", tryNow}, {"max", maxTries}}));
+        else
+            ctx.log.Add(LogCat::Death, TrF("log_death_no_button_seen", {{"try", tryNow}, {"max", maxTries}, {"seen", seen}}));
         if (m_tries >= s.maxRetries)
-            return HoldManual(ctx,
-                              s.allowGenericRespawn ? "no respawn button found on the death screen"
-                                                    : "no checkpoint button on the death screen (the generic respawn "
-                                                      "button is not allowed)",
-                              true);
-        std::snprintf(buf, sizeof(buf), "Dead: no respawn button yet (try %d of %d)", m_tries, s.maxRetries);
-        ctx.report.detail = buf;
+            return HoldManual(ctx, s.allowGenericRespawn ? Tr("death_why_no_button") : Tr("death_why_no_cp_button"), true);
+        ctx.report.detail = TrF("detail_death_no_button", {{"try", tryNow}, {"max", maxTries}});
         return TaskStatus::Running;
     }
 
@@ -241,23 +237,25 @@ TaskStatus DeathTask::Tick(BotContext& ctx) {
     if (r == ActResult::Ok) {
         ++m_clicks;
         m_lastButton = hit.name;
-        ctx.log.Add(LogCat::Death, "Respawn try %d of %d: clicked \"%s\" at (%.0f, %.0f)", m_tries, s.maxRetries,
-                    death::ButtonLabel(hit.name), at.x, at.y);
-        std::snprintf(buf, sizeof(buf), "Dead: clicked \"%s\" (try %d of %d)", death::ButtonLabel(hit.name), m_tries,
-                      s.maxRetries);
-        ctx.report.detail = buf;
+        ctx.log.Add(LogCat::Death, TrF("log_death_clicked", {{"try", tryNow},
+                                                             {"max", maxTries},
+                                                             {"button", Tr(death::ButtonLabel(hit.name))},
+                                                             {"x", Num("%.0f", at.x)},
+                                                             {"y", Num("%.0f", at.y)}}));
+        ctx.report.detail = TrF("detail_death_clicked", {{"button", Tr(death::ButtonLabel(hit.name))},
+                                                         {"try", tryNow},
+                                                         {"max", maxTries}});
         return TaskStatus::Running;
     }
     if (r == ActResult::NotReady || r == ActResult::CursorBusy) {
         // Not sent: the same try again on the next tick.
         --m_tries;
         m_nextTryMs = ctx.now;
-        ctx.report.detail = "Dead: waiting to click";
+        ctx.report.detail = Tr("detail_death_waiting_click");
         return TaskStatus::Running;
     }
-    ctx.log.Add(LogCat::Death, "Respawn try %d of %d: the click was not sent (%s)", m_tries, s.maxRetries,
-                ActResultName(r));
-    ctx.report.detail = "Dead: the respawn click was not sent";
+    ctx.log.Add(LogCat::Death, TrF("log_death_click_not_sent", {{"try", tryNow}, {"max", maxTries}, {"why", Tr(ActResultName(r))}}));
+    ctx.report.detail = Tr("detail_death_click_not_sent");
     return TaskStatus::Running;
 }
 
@@ -265,63 +263,71 @@ TaskStatus DeathTask::Tick(BotContext& ctx) {
 // Debug probe
 // ---------------------------------------------------------------------------
 
-std::string DeathTask::ProbeDeathScreen(BotContext& ctx) {
+std::vector<LocText> DeathTask::ProbeDeathScreen(BotContext& ctx) {
+    std::vector<LocText> out;
+    out.push_back(Tr("probe_heading"));
     const PluginSDK::Context* sdk = ctx.sdk;
-    if (!sdk) return "no host";
+    if (!sdk) {
+        out.push_back(Tr("probe_no_host"));
+        return out;
+    }
     const bool names = sdk->Ui.HasControlNames();
     const bool find = sdk->Ui.HasFindElements();
-    std::string out = std::string("host: UI names ") + (names ? "yes" : "no") + ", UI search " + (find ? "yes" : "no");
-    if (!find) return out + " - automatic respawn needs POEFixer 365 or newer: respawn manually";
+    out.push_back(TrF("probe_host", {{"names", names ? Tr("common_yes") : Tr("common_no")},
+                                     {"search", find ? Tr("common_yes") : Tr("common_no")}}));
+    if (!find) {
+        out.push_back(Tr("probe_needs_365"));
+        return out;
+    }
     const World& w = ctx.w;
-    out += w.self.dead ? " | you are dead" : " | you are alive (the death screen is normally hidden)";
+    out.push_back(w.self.dead ? Tr("probe_dead") : Tr("probe_alive"));
 
-    char buf[160];
     auto rectText = [&](uintptr_t addr) {
         float x = 0.f, y = 0.f, rw = 0.f, rh = 0.f;
-        if (!sdk->Ui.ComputeScreenRect(addr, x, y, rw, rh)) return std::string("no rectangle");
-        std::snprintf(buf, sizeof(buf), "%.0f,%.0f %.0fx%.0f%s", x, y, rw, rh,
-                      death::RectClickable(x, y, rw, rh, w.gate.screenW, w.gate.screenH) ? "" : " not clickable");
-        return std::string(buf);
+        if (!sdk->Ui.ComputeScreenRect(addr, x, y, rw, rh)) return Tr("probe_no_rect");
+        const std::string rect = Num("%.0f,%.0f %.0fx%.0f", x, y, rw, rh);
+        if (death::RectClickable(x, y, rw, rh, w.gate.screenW, w.gate.screenH))
+            return TrF("text_verbatim", {{"text", rect}});
+        return TrF("probe_rect_not_clickable", {{"rect", rect}});
     };
 
     const auto all = sdk->Ui.FindElements(0, death::kDeathScreen, UiMatchKind::ControlName, death::kDeathScreenDepth,
                                           false, 4);
-    if (all.empty())
-        return out + " | death_screen: not found within " + std::to_string(death::kDeathScreenDepth) +
-               " levels of the game UI (the control name may differ: Dump UI tree)";
+    if (all.empty()) {
+        out.push_back(TrF("probe_screen_not_found", {{"levels", Num("%d", death::kDeathScreenDepth)}}));
+        return out;
+    }
     const auto vis = sdk->Ui.FindElements(0, death::kDeathScreen, UiMatchKind::ControlName, death::kDeathScreenDepth,
                                           true, 1);
     const uintptr_t screen = vis.empty() ? all.front() : vis.front();
-    out += " | death_screen: ";
-    out += vis.empty() ? "hidden" : "visible (" + rectText(screen) + ")";
-    if (all.size() > 1) out += " (" + std::to_string(all.size()) + " found)";
+    out.push_back(vis.empty() ? Tr("probe_screen_hidden") : TrF("probe_screen_visible", {{"rect", rectText(screen)}}));
+    if (all.size() > 1) out.push_back(TrF("probe_found_count", {{"count", Num("%d", static_cast<int>(all.size()))}}));
 
     const char* const kButtons[] = {death::kRespawnAtCheckpoint, death::kReviveAtCheckpoint, death::kRespawn,
                                     death::kSpectate};
     for (const char* name : kButtons) {
         const auto any = sdk->Ui.FindElements(screen, name, UiMatchKind::ControlName, death::kButtonDepth, false, 1);
-        out += " | ";
-        out += name;
         if (any.empty()) {
-            out += ": not found";
+            out.push_back(TrF("probe_button_not_found", {{"name", name}}));
             continue;
         }
         const auto shown = sdk->Ui.FindElements(screen, name, UiMatchKind::ControlName, death::kButtonDepth, true, 1);
-        out += shown.empty() ? ": hidden" : ": visible (" + rectText(shown.front()) + ")";
+        out.push_back(shown.empty() ? TrF("probe_button_hidden", {{"name", name}})
+                                    : TrF("probe_button_visible", {{"name", name}, {"rect", rectText(shown.front())}}));
     }
 
     const DeathSettings& s = ctx.p.death;
     ButtonHit hit;
     std::string seen;
     if (!s.autoRespawn) {
-        out += " | automatic respawn is off";
+        out.push_back(Tr("death_why_auto_off"));
     } else if (!vis.empty() && FindButton(*sdk, screen, death::RespawnButtonOrder(s), w.gate.screenW, w.gate.screenH,
                                           hit, seen)) {
-        out += std::string(" | would click: ") + death::ButtonLabel(hit.name);
+        out.push_back(TrF("probe_would_click", {{"button", Tr(death::ButtonLabel(hit.name))}}));
     } else {
-        out += " | would click: nothing";
+        out.push_back(Tr("probe_would_click_nothing"));
     }
-    if (!names) out += " | (UI names unavailable: the UI dump has no name column)";
+    if (!names) out.push_back(Tr("probe_no_names"));
     return out;
 }
 

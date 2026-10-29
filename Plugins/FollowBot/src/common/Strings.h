@@ -63,6 +63,31 @@ inline bool ContainsCI(std::string_view hay, std::string_view needle) {
     return FoldCase(hay).find(FoldCase(needle)) != std::string::npos;
 }
 
+// The decision log filter: a line is shown when the filter (any letter case, any script)
+// is part of the line as the Debug tab shows it in the program language, or of its
+// English text (the log file's and the Copy button's words, so a filter copied from a
+// bug report or the log file finds the line in every program language).
+inline bool MatchesLogFilter(std::string_view shown, std::string_view english, std::string_view filter) {
+    if (filter.empty()) return true;
+    return ContainsCI(shown, filter) || ContainsCI(english, filter);
+}
+
+// Keeps the first `maxChars` characters (UTF-8 code points) of `s`, never part of one: a
+// game or localized text is cut by characters, never by bytes (a byte cut splits a
+// Russian or Thai character). Returns whether anything was cut.
+inline bool CutToChars(std::string& s, size_t maxChars) {
+    size_t chars = 0;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) continue;
+        if (chars == maxChars) {
+            s.resize(i);
+            return true;
+        }
+        ++chars;
+    }
+    return false;
+}
+
 inline bool StartsWith(std::string_view s, std::string_view prefix) {
     return s.size() >= prefix.size() && s.compare(0, prefix.size(), prefix) == 0;
 }

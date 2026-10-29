@@ -65,7 +65,7 @@ class StashTask : public Task {
 public:
     enum class Trigger : uint8_t { None = 0, Manual, Opportunistic, LeaveMap };
 
-    const char* Name() const override { return "Stash"; }
+    const char* Name() const override { return Key("task_stash"); }
 
     bool WantsToStart(BotContext& ctx);
     void Start(BotContext& ctx);
@@ -79,10 +79,10 @@ public:
     // True while the stash panel is (or is being) opened by this task: the
     // Gates do not count it as a foreign panel.
     bool OwnsPanel() const { return m_ownsPanel; }
-    const std::string& FailReason() const { return m_fail; }
-    static const char* TriggerName(Trigger t);
+    const LocText& FailReason() const { return m_fail; }
+    static const char* TriggerName(Trigger t);   // the trigger's key (lang/en.json)
 
-    // One line: what the run does right now ("" when idle).
+    // What the run does right now: a key ("" when idle).
     const char* PhaseText() const;
 
 private:
@@ -112,8 +112,8 @@ private:
     TaskStatus TickStranded(BotContext& ctx);
 
     // Failure: close the panel / go back through the portal first, then report.
-    TaskStatus FailRun(BotContext& ctx, const std::string& why);
-    // An item on the cursor: stop the bot, leave everything as it is.
+    TaskStatus FailRun(BotContext& ctx, const LocText& why);
+    // An item on the cursor: stop the bot, leave everything as it is. `when`: a key.
     TaskStatus StopForCursor(BotContext& ctx, const char* when);
     // `countAsRun` false: the run gave way (no cooldown, no baseline).
     TaskStatus Finish(BotContext& ctx, TaskStatus st, bool countAsRun = true);
@@ -121,12 +121,12 @@ private:
     void StartStashClick(BotContext& ctx, const Interactable& stash);
     void BeginGroup(BotContext& ctx);
     void EndGroup(BotContext& ctx, bool tabFull);
-    void FallbackToOpenTab(BotContext& ctx, const char* why);
+    void FallbackToOpenTab(BotContext& ctx, const LocText& why);
     bool ReadTabs(BotContext& ctx);
     bool PanelOpen(const World& w) const;
     bool PanelGone(const World& w) const;
     void ReleaseCtrl(BotContext& ctx);
-    void Warn(BotContext& ctx, const std::string& text);
+    void Warn(BotContext& ctx, const LocText& text);
     int  RarityOf(BotContext& ctx, const BagItem& it);
     bool SomethingToStash(BotContext& ctx);
     void BuildPlan(BotContext& ctx, const std::vector<BagItem>& items, DepositPlan& out);
@@ -139,7 +139,7 @@ private:
     WorldClick  m_click;
     PortalTrip  m_trip;
     DepositPlan m_plan;
-    std::string m_fail;
+    LocText     m_fail;
 
     // --- additions -----------------------------------------------------------
     Phase       m_phase = Phase::Idle;
@@ -155,7 +155,7 @@ private:
     uint64_t    m_openMs = 0;             // the panel was seen open (listing scan time)
     uint64_t    m_escMs = 0;
     int         m_escTries = 0;
-    std::string m_pendingFail;            // reported after closing / going back
+    LocText     m_pendingFail;            // reported after closing / going back
     bool        m_stopAfter = false;      // stop the bot when the run ends
     // Plan + deposit.
     std::vector<BagItem> m_planItems;
@@ -183,8 +183,8 @@ private:
     int         m_tabIndex = -1;
     int         m_openIdBefore = 0;
     uint64_t    m_tabClickMs = 0;
-    std::string m_groupTabLabel;          // what the detail line calls the group's tab
-    std::vector<std::string> m_warned;    // warnings already given this run
+    LocText     m_groupTabLabel;          // what the detail line calls the group's tab
+    std::vector<LocText> m_warned;        // warnings already given this run
     // Stranded.
     uint64_t    m_strandedMs = 0;
     uint32_t    m_strandedArea = 0;
@@ -201,7 +201,7 @@ private:
     const char* m_lastWhy = nullptr;
     struct RarityEntry { uintptr_t addr; std::string path; int rarity; };
     std::vector<RarityEntry> m_rarity;
-    std::string m_detail;
+    LocText     m_detail;
 };
 
 }  // namespace fb

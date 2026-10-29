@@ -34,14 +34,15 @@ StashUiState& UiState() {
     return s;
 }
 
-const char* const* CategoryNames() {
-    static const char* names[kItemCategoryCount] = {};
-    if (!names[0])
-        for (int i = 0; i < kItemCategoryCount; ++i) names[i] = ItemCategoryName(static_cast<ItemCategory>(i));
+// The category names in the program language (built every frame: the language may change).
+std::vector<const char*> CategoryNames() {
+    std::vector<const char*> names;
+    names.reserve(kItemCategoryCount);
+    for (int i = 0; i < kItemCategoryCount; ++i) names.push_back(I18n::Tr(ItemCategoryName(static_cast<ItemCategory>(i))));
     return names;
 }
 
-const char* YesNo365(bool v) { return v ? "yes" : "no (needs POEFixer 365+)"; }
+const char* YesNo365(bool v) { return v ? I18n::Tr("common_yes") : I18n::Tr("stash_no_365"); }
 
 ImU32 Col(const ImVec4& c, float alphaMul = 1.0f) {
     ImVec4 v = c;
@@ -60,8 +61,7 @@ bool ProtectedCellsGrid(StashSettings& st, const StashDiagData& diag, StashUiSta
     const ImVec2 size(cell * kBackpackCols + gap * (kBackpackCols - 1), cell * kBackpackRows + gap * (kBackpackRows - 1));
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##protGrid", size);
-    Tip("Click or drag: items touching a protected cell are never stashed.\n"
-        "A dot marks a cell that holds an item right now.");
+    Tip(I18n::Tr("stash_protect_grid_tip"));
     const bool active = ImGui::IsItemActive();
     const bool hovered = ImGui::IsItemHovered();
     auto cellAt = [&](const ImVec2& m, int& cx, int& cy) {
@@ -108,45 +108,40 @@ void FollowBotPlugin::DrawTabStash() {
     const BotView* v = m_uiView.get();
     const PluginUi::Palette pal = PluginUi::Colors();
     bool changed = false;
-    char buf[256];
+    const char* cells = I18n::Key("unit_cells");
+    const char* ms = I18n::Key("unit_ms");
 
     // --- Stash ----------------------------------------------------------------
     PluginUi::BeginCard("##stash");
-    Heading(ICON_FA_BOX_ARCHIVE, "Stash",
-            "Empties the backpack into your own or the guild stash: walks to the stash, opens it, switches to the\n"
-            "right tab and Ctrl+clicks every item that is not protected or kept. An item counts as stashed only\n"
-            "once it is gone from the backpack. The panel is closed again afterwards.");
-    changed |= Check("Stash items", "stashOn", &st.enabled,
-                     "Off: the bot never opens a stash (neither automatically nor with \"Stash now\").");
+    Heading(ICON_FA_BOX_ARCHIVE, I18n::Tr("stash_title"), I18n::Tr("stash_title_help"));
+    changed |= Check(I18n::Tr("stash_on"), "stashOn", &st.enabled, I18n::Tr("stash_on_tip"));
     ImGui::BeginDisabled(!st.enabled);
     {
-        const LabelColumn col({"Stash"});
-        col.Row("Stash");
+        const LabelColumn col({I18n::Tr("stash_target")});
+        col.Row(I18n::Tr("stash_target"));
         int target = static_cast<int>(st.target);
-        if (PluginUi::Combo("##target", target, {"Own stash", "Guild stash"})) {
+        if (PluginUi::Combo("##target", target, {I18n::Tr("stash_target_own"), I18n::Tr("stash_target_guild")})) {
             st.target = static_cast<StashTarget>(target);
             changed = true;
         }
-        Tip("Own stash: your personal stash.\nGuild stash: deposits are slower (each one waits for the server);\n"
-            "use a slower click gap for it (Timing).");
+        Tip(I18n::Tr("stash_target_tip"));
     }
     ImGui::Spacing();
     const bool running = m_running.load();
     ImGui::BeginDisabled(!running);
-    if (ImGui::Button("Stash now###stashNow")) RequestStashNow();
+    if (ImGui::Button(I18n::TrId("general_hk_stash"))) RequestStashNow();
     ImGui::EndDisabled();
-    Tip(running ? "Starts a stash run now: in a town or hideout directly, in a map through a portal\n(needs the portal key)."
-                : "Works while the bot runs (Start it first). The \"Stash now\" hotkey is on the General tab.");
+    Tip(running ? I18n::Tr("stash_now_tip") : I18n::Tr("stash_now_stopped_tip"));
     ImGui::SameLine();
-    if (!dg.trigger.empty()) {
-        std::snprintf(buf, sizeof(buf), "%s: %s", dg.trigger.c_str(), dg.phase.empty() ? "starting" : dg.phase.c_str());
-        PluginUi::StatusPill(buf, ui::U32(pal.Success));
+    if (dg.trigger && dg.trigger[0]) {
+        const std::string pill = I18n::TrF("stash_pill_run", {{"trigger", I18n::Tr(dg.trigger)},
+                                                               {"phase", dg.phase && dg.phase[0] ? I18n::Tr(dg.phase)
+                                                                                                 : I18n::Tr("stash_starting")}});
+        PluginUi::StatusPill(pill.c_str(), ui::U32(pal.Success));
     } else {
-        PluginUi::StatusPill(running ? "Idle" : "Bot stopped", ui::U32(pal.TextSecondary));
+        PluginUi::StatusPill(running ? I18n::Tr("stash_idle") : I18n::Tr("stash_bot_stopped"), ui::U32(pal.TextSecondary));
     }
-    if (v && !v->hostHasStashObjects)
-        ui::HostNote("Stashes the game hides from the entity list are found with POEFixer 365 or newer; on this version the "
-                     "bot uses only the stashes it can see.");
+    if (v && !v->hostHasStashObjects) ui::HostNote(I18n::Tr("stash_objects_old_host"));
     ImGui::EndDisabled();
     PluginUi::EndCard();
     ImGui::Spacing();
@@ -155,67 +150,55 @@ void FollowBotPlugin::DrawTabStash() {
 
     // --- When ---------------------------------------------------------------------
     PluginUi::BeginCard("##stashWhen");
-    Heading(ICON_FA_CLOCK, "When to stash",
-            "In a town or hideout the bot stashes on its own once the backpack is full enough and the leader stands\n"
-            "still (or is not around). In a map it can open a portal, stash in the hideout and come back through\n"
-            "the same portal (off by default). A run that failed waits before the next automatic one; after three\n"
-            "failures in one area it stops trying there until the area changes.");
-    changed |= Check("In town and hideout when the backpack fills", "opportunistic", &st.opportunistic,
-                     "Needs a stash of the chosen kind in the area.");
+    Heading(ICON_FA_CLOCK, I18n::Tr("stash_when"), I18n::Tr("stash_when_help"));
+    changed |= Check(I18n::Tr("stash_opportunistic"), "opportunistic", &st.opportunistic, I18n::Tr("stash_opportunistic_tip"));
     {
         ImGui::BeginDisabled(!st.opportunistic);
-        const LabelColumn col({"Stash at", "Leader stands still", "Trip at", "No enemy within", "Portal key",
-                               "Wait for the portal", "Look for it within", "After a failure wait"});
-        changed |= ui::IntRow(col, "Stash at", "##stashAt", &st.stashWhenUsedCells, 1, kBackpackCells, "%d of 60 cells",
-                              "Backpack cells in use (or a loot item that found no room).");
-        changed |= ui::IntRow(col, "Leader stands still", "##leaderIdle", &st.leaderIdleMs, 0, 30000, "%d ms",
-                              "The leader has not moved for this long (or is not in sight) before the bot leaves him.");
+        const LabelColumn col({I18n::Tr("stash_at"), I18n::Tr("stash_leader_idle"), I18n::Tr("stash_trip_at"),
+                               I18n::Tr("loot_no_enemy"), I18n::Tr("general_key_portal"), I18n::Tr("stash_portal_wait"),
+                               I18n::Tr("stash_portal_search"), I18n::Tr("stash_fail_cooldown")});
+        changed |= ui::IntRow(col, I18n::Tr("stash_at"), "##stashAt", &st.stashWhenUsedCells, 1, kBackpackCells,
+                              I18n::Key("stash_unit_used_cells"), I18n::Tr("stash_used_cells_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_leader_idle"), "##leaderIdle", &st.leaderIdleMs, 0, 30000, ms,
+                              I18n::Tr("stash_leader_idle_tip"));
         ImGui::EndDisabled();
         ImGui::Spacing();
-        changed |= Check("Leave the map through a portal to stash", "leaveTrip", &st.leaveMapTrip,
-                         "In a map: opens a portal with the portal key, stashes in the hideout / town and returns\n"
-                         "through the portal nearest to where it arrived. Off by default.");
+        changed |= Check(I18n::Tr("stash_leave_trip"), "leaveTrip", &st.leaveMapTrip, I18n::Tr("stash_leave_trip_tip"));
         ImGui::BeginDisabled(!st.leaveMapTrip);
-        changed |= ui::IntRow(col, "Trip at", "##tripAt", &st.tripWhenUsedCells, 1, kBackpackCells, "%d of 60 cells",
-                              "Backpack cells in use (or a loot item that found no room).");
-        changed |= ui::FloatRow(col, "No enemy within", "##tripEnemy", &st.tripNoEnemyRadius, 0.f, 120.f, "%.0f cells",
-                                "Leaves only with no enemy this close; enemies arriving before the portal is clicked\n"
-                                "call the trip off.");
-        col.RowNoWidth("Portal key");
-        KeyRow("##stashPortalKey", &st.portalKey,
-               "The key that opens a portal (bind the portal skill to it in the game). The same key as on the General tab.",
-               false);
-        changed |= ui::IntRow(col, "Wait for the portal", "##portalWait", &st.portalWaitMs, 1000, 10000, "%d ms",
-                              "After the key press; without a portal the key is pressed once more, then the trip fails.");
-        changed |= ui::FloatRow(col, "Look for it within", "##portalSearch", &st.portalSearchCells, 5.f, 40.f, "%.0f cells",
-                                "Only a portal that appeared this close after the key press is taken.");
+        changed |= ui::IntRow(col, I18n::Tr("stash_trip_at"), "##tripAt", &st.tripWhenUsedCells, 1, kBackpackCells,
+                              I18n::Key("stash_unit_used_cells"), I18n::Tr("stash_used_cells_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("loot_no_enemy"), "##tripEnemy", &st.tripNoEnemyRadius, 0.f, 120.f, cells, "%.0f",
+                                I18n::Tr("stash_trip_no_enemy_tip"));
+        col.RowNoWidth(I18n::Tr("general_key_portal"));
+        KeyRow("##stashPortalKey", &st.portalKey, I18n::Tr("stash_portal_key_tip"), false);
+        changed |= ui::IntRow(col, I18n::Tr("stash_portal_wait"), "##portalWait", &st.portalWaitMs, 1000, 10000, ms,
+                              I18n::Tr("stash_portal_wait_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("stash_portal_search"), "##portalSearch", &st.portalSearchCells, 5.f, 40.f, cells,
+                                "%.0f", I18n::Tr("stash_portal_search_tip"));
         ImGui::EndDisabled();
         int coolS = st.failCooldownMs / 1000;
-        if (ui::IntRow(col, "After a failure wait", "##failCool", &coolS, 0, 600, "%d s",
-                       "Before the next automatic run (Stash now always works).")) {
+        if (ui::IntRow(col, I18n::Tr("stash_fail_cooldown"), "##failCool", &coolS, 0, 600, I18n::Key("unit_s"),
+                       I18n::Tr("stash_fail_cooldown_tip"))) {
             st.failCooldownMs = coolS * 1000;
             changed = true;
         }
     }
-    if (st.leaveMapTrip && st.portalKey == 0) ui::Warning("Set the portal key: without it the bot cannot leave the map to stash.");
+    if (st.leaveMapTrip && st.portalKey == 0) ui::Warning(I18n::Tr("stash_no_portal_key"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Tabs ---------------------------------------------------------------------
     PluginUi::BeginCard("##stashTabs");
-    Heading(ICON_FA_TABLE_LIST, "Tabs",
-            "Items of a category go to the tab with that name (your own tab names; case does not matter). Everything\n"
-            "else goes to the default tab, or into whatever tab is open when the default is empty. Tabs whose list is\n"
-            "collapsed and cannot be opened, or names that do not exist, use the open tab instead (or keep the\n"
-            "items, see below).");
+    Heading(ICON_FA_TABLE_LIST, I18n::Tr("stash_tabs"), I18n::Tr("stash_tabs_help"));
     int removeAt = -1;
     if (!st.routes.empty() &&
         ImGui::BeginTable("##routes", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_PadOuterX)) {
         const float delW = PluginUi::ButtonWidth(ICON_FA_TRASH_CAN);
-        ImGui::TableSetupColumn("Category", ImGuiTableColumnFlags_WidthStretch, 3.0f);
-        ImGui::TableSetupColumn("Tab name", ImGuiTableColumnFlags_WidthStretch, 3.0f);
+        ImGui::TableSetupColumn(I18n::TrId("loot_category"), ImGuiTableColumnFlags_WidthStretch, 3.0f);
+        ImGui::TableSetupColumn(I18n::TrId("stash_col_tab_name"), ImGuiTableColumnFlags_WidthStretch, 3.0f);
         ImGui::TableSetupColumn("##del", ImGuiTableColumnFlags_WidthFixed, delW);
         ImGui::TableHeadersRow();
+        const std::vector<const char*> categoryNames = CategoryNames();
         for (size_t i = 0; i < st.routes.size(); ++i) {
             StashRoute& r = st.routes[i];
             ImGui::PushID(static_cast<int>(i));
@@ -223,19 +206,19 @@ void FollowBotPlugin::DrawTabStash() {
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(-1.0f);
             int c = static_cast<int>(r.category);
-            if (PluginUi::Combo("##cat", c, CategoryNames(), kItemCategoryCount)) {
+            if (PluginUi::Combo("##cat", c, categoryNames.data(), kItemCategoryCount)) {
                 r.category = static_cast<ItemCategory>(c);
                 changed = true;
             }
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(-1.0f);
-            if (PluginUi::InputString("##tab", "tab name", r.tab)) {
+            if (PluginUi::InputString("##tab", I18n::Tr("stash_tab_name_hint"), r.tab)) {
                 if (r.tab.size() > 64) r.tab.resize(64);
                 changed = true;
             }
             ImGui::TableNextColumn();
             if (PluginUi::SubtleButton(ICON_FA_TRASH_CAN)) removeAt = static_cast<int>(i);
-            Tip("Remove this route");
+            Tip(I18n::Tr("stash_remove_route"));
             ImGui::PopID();
         }
         ImGui::EndTable();
@@ -245,7 +228,7 @@ void FollowBotPlugin::DrawTabStash() {
         changed = true;
     }
     ImGui::BeginDisabled(st.routes.size() >= 64);
-    if (PluginUi::SubtleButton(ICON_FA_PLUS "  Add route###addRoute")) {
+    if (PluginUi::SubtleButton(ui::IconLabel(ICON_FA_PLUS, I18n::Tr("stash_add_route"), "addRoute").c_str())) {
         StashRoute r;
         r.category = ItemCategory::Currency;
         for (int c = 0; c < kItemCategoryCount; ++c) {   // the first category without a route
@@ -260,52 +243,47 @@ void FollowBotPlugin::DrawTabStash() {
         changed = true;
     }
     ImGui::EndDisabled();
-    if (st.routes.empty()) Hint("No routes: everything goes to the default tab.");
+    if (st.routes.empty()) Hint(I18n::Tr("stash_no_routes"));
     {
-        const LabelColumn col({"Default tab"});
-        col.Row("Default tab");
-        if (PluginUi::InputString("##defaultTab", "the open tab", st.defaultTab)) {
+        const LabelColumn col({I18n::Tr("stash_default_tab")});
+        col.Row(I18n::Tr("stash_default_tab"));
+        if (PluginUi::InputString("##defaultTab", I18n::Tr("stash_open_tab"), st.defaultTab)) {
             if (st.defaultTab.size() > 64) st.defaultTab.resize(64);
             changed = true;
         }
-        Tip("Items without a route go here. Empty: whatever tab is open when the stash opens.");
+        Tip(I18n::Tr("stash_default_tab_tip"));
     }
-    changed |= Check("Use the open tab when a tab cannot be used", "missingTabOpen", &st.missingTabUsesOpenTab,
-                     "On: items for a missing or unreachable tab go into the tab that is open (a warning is shown).\n"
-                     "Off: those items stay in the backpack.");
-    if (v && !v->hostHasStashTabs)
-        ui::HostNote("Tab switching needs POEFixer 365 or newer. On this version every item goes into the open tab "
-                     "(or stays, with the option above off).");
+    changed |= Check(I18n::Tr("stash_missing_tab_open"), "missingTabOpen", &st.missingTabUsesOpenTab,
+                     I18n::Tr("stash_missing_tab_open_tip"));
+    if (v && !v->hostHasStashTabs) ui::HostNote(I18n::Tr("stash_tabs_old_host"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- What stays -------------------------------------------------------------
     PluginUi::BeginCard("##stashKeep");
-    Heading(ICON_FA_LOCK, "What stays in the backpack",
-            "Items on a protected cell (any of the cells they cover), items of a kept category and items matching a\n"
-            "kept name are never stashed. Quest items always stay.");
-    ImGui::TextUnformatted("Protected cells");
+    Heading(ICON_FA_LOCK, I18n::Tr("stash_keep"), I18n::Tr("stash_keep_help"));
+    ImGui::TextUnformatted(I18n::Tr("stash_protected_cells"));
     changed |= ProtectedCellsGrid(st, dg, ui);
-    if (PluginUi::SubtleButton("Clear###protClear")) {
+    if (PluginUi::SubtleButton(I18n::TrId("stash_clear"))) {
         st.protectedCells = 0;
         changed = true;
     }
-    Tip("Unprotect every cell.");
+    Tip(I18n::Tr("stash_clear_tip"));
     ImGui::SameLine();
     ImGui::BeginDisabled(!dg.backpackValid);
-    if (PluginUi::SubtleButton("Protect what is there now###protNow")) {
+    if (PluginUi::SubtleButton(I18n::TrId("stash_protect_now"))) {
         for (int i = 0; i < kBackpackCells; ++i)
             if (dg.occupied[static_cast<size_t>(i)]) st.SetProtected(i % kBackpackCols, i / kBackpackCols, true);
         changed = true;
     }
     ImGui::EndDisabled();
-    Tip("Protects every cell that holds an item right now (your build's flasks, scrolls, a portal stack ...).");
+    Tip(I18n::Tr("stash_protect_now_tip"));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Kept categories");
+    ImGui::TextUnformatted(I18n::Tr("stash_kept_categories"));
     // As many columns as the longest category name allows (1..3).
     float longest = 0.f;
     for (int i = 0; i < kItemCategoryCount; ++i)
-        longest = (std::max)(longest, ImGui::CalcTextSize(ItemCategoryName(static_cast<ItemCategory>(i))).x);
+        longest = (std::max)(longest, ImGui::CalcTextSize(I18n::Tr(ItemCategoryName(static_cast<ItemCategory>(i)))).x);
     const float colW = longest + ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x +
                        ImGui::GetStyle().ItemSpacing.x * 3.0f;
     const int keepCols = std::clamp(static_cast<int>(ImGui::GetContentRegionAvail().x / (std::max)(1.0f, colW)), 1, 3);
@@ -318,12 +296,12 @@ void FollowBotPlugin::DrawTabStash() {
             if (cat == ItemCategory::Quest) {
                 bool on = true;
                 ImGui::BeginDisabled(true);
-                Check(ItemCategoryName(cat), id, &on, "Quest items always stay (the stash refuses them).");
+                Check(I18n::Tr(ItemCategoryName(cat)), id, &on, I18n::Tr("stash_quest_stays"));
                 ImGui::EndDisabled();
                 continue;
             }
             bool on = st.Keeps(cat);
-            if (Check(ItemCategoryName(cat), id, &on, nullptr)) {
+            if (Check(I18n::Tr(ItemCategoryName(cat)), id, &on, nullptr)) {
                 st.SetKeep(cat, on);
                 changed = true;
             }
@@ -331,9 +309,8 @@ void FollowBotPlugin::DrawTabStash() {
         ImGui::EndTable();
     }
     ImGui::Spacing();
-    ImGui::TextUnformatted("Kept names");
-    PluginUi::HelpMarker("One per line (or comma-separated), any case. An item stays when its base name, unique name\n"
-                         "or metadata path contains one of them, e.g. \"Wisdom\", \"Headhunter\", \"Waystone\".");
+    ImGui::TextUnformatted(I18n::Tr("stash_kept_names"));
+    PluginUi::HelpMarker(I18n::Tr("stash_kept_names_help"));
     {
         const bool external = ui.keepProfile != static_cast<const void*>(&prof) || ui.keepApplied != st.keepNames;
         if (external && !ImGui::IsAnyItemActive()) {
@@ -358,60 +335,52 @@ void FollowBotPlugin::DrawTabStash() {
 
     // --- Timing ---------------------------------------------------------------------
     PluginUi::BeginCard("##stashTiming");
-    Heading(ICON_FA_STOPWATCH, "Timing",
-            "How fast the bot clicks and how long it waits. An item counts as stashed only once it is gone from the\n"
-            "backpack; until then it is not clicked again. An item still there after the wait is clicked again, and\n"
-            "skipped after the set number of waits; several skips in a row mean the tab is full.");
+    Heading(ICON_FA_STOPWATCH, I18n::Tr("stash_timing"), I18n::Tr("stash_timing_help"));
     {
-        const LabelColumn col({"Own stash click gap", "Guild stash click gap", "Wait for an item to move", "Waits per item",
-                               "Skips in a row = full", "Wait for the panel", "Clicks on the stash", "Stand this far away",
-                               "After a tab click wait", "Hover the stash"});
-        changed |= ui::IntRow(col, "Own stash click gap", "##ownGap", &st.ownClickDelayMs, 30, 1000, "%d ms",
-                              "Between two Ctrl+clicks into your own stash (the input timing's minimum gap still applies).");
-        changed |= ui::IntRow(col, "Guild stash click gap", "##guildGap", &st.guildClickDelayMs, 100, 2000, "%d ms",
-                              "Between two Ctrl+clicks into the guild stash (slower: each deposit waits for the server).");
-        changed |= ui::IntRow(col, "Wait for an item to move", "##confirmWin", &st.confirmWindowMs, 300, 5000, "%d ms",
-                              "How long a clicked item may take to leave the backpack before it is clicked again.");
-        changed |= ui::IntRow(col, "Waits per item", "##maxWin", &st.maxConfirmWindows, 1, 10, "%d",
-                              "After this many waits with the item still there it is skipped.");
-        changed |= ui::IntRow(col, "Skips in a row = full", "##tabFull", &st.tabFullSkips, 1, 10, "%d",
-                              "This many skipped items in a row: the tab is treated as full and the rest of its items stay.");
-        changed |= ui::IntRow(col, "Wait for the panel", "##openWait", &st.openTimeoutMs, 1000, 10000, "%d ms",
-                              "After clicking the stash; then it is clicked again.");
-        changed |= ui::IntRow(col, "Clicks on the stash", "##openTries", &st.openRetries, 1, 10, "%d",
-                              "Tries to reach and open the stash before the run fails.");
-        changed |= ui::FloatRow(col, "Stand this far away", "##ring", &st.approachRingCells, 3.f, 20.f, "%.0f cells",
-                                "The stash blocks the way: the bot stops this far from it and clicks.");
-        changed |= ui::IntRow(col, "After a tab click wait", "##tabWait", &st.tabSwitchWaitMs, 100, 2000, "%d ms",
-                              "Before checking that the tab switched.");
-        changed |= ui::IntRow(col, "Hover the stash", "##dwell", &st.clickDwellMs, 40, 600, "%d ms",
-                              "The cursor rests on the stash this long before the click (the game must notice the hover).");
+        const LabelColumn col({I18n::Tr("stash_own_gap"), I18n::Tr("stash_guild_gap"), I18n::Tr("stash_confirm_window"),
+                               I18n::Tr("stash_max_windows"), I18n::Tr("stash_tab_full"), I18n::Tr("stash_open_wait"),
+                               I18n::Tr("stash_open_tries"), I18n::Tr("stash_ring"), I18n::Tr("stash_tab_wait"),
+                               I18n::Tr("stash_dwell")});
+        changed |= ui::IntRow(col, I18n::Tr("stash_own_gap"), "##ownGap", &st.ownClickDelayMs, 30, 1000, ms,
+                              I18n::Tr("stash_own_gap_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_guild_gap"), "##guildGap", &st.guildClickDelayMs, 100, 2000, ms,
+                              I18n::Tr("stash_guild_gap_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_confirm_window"), "##confirmWin", &st.confirmWindowMs, 300, 5000, ms,
+                              I18n::Tr("stash_confirm_window_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_max_windows"), "##maxWin", &st.maxConfirmWindows, 1, 10, nullptr,
+                              I18n::Tr("stash_max_windows_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_tab_full"), "##tabFull", &st.tabFullSkips, 1, 10, nullptr,
+                              I18n::Tr("stash_tab_full_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_open_wait"), "##openWait", &st.openTimeoutMs, 1000, 10000, ms,
+                              I18n::Tr("stash_open_wait_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_open_tries"), "##openTries", &st.openRetries, 1, 10, nullptr,
+                              I18n::Tr("stash_open_tries_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("stash_ring"), "##ring", &st.approachRingCells, 3.f, 20.f, cells, "%.0f",
+                                I18n::Tr("stash_ring_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_tab_wait"), "##tabWait", &st.tabSwitchWaitMs, 100, 2000, ms,
+                              I18n::Tr("stash_tab_wait_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("stash_dwell"), "##dwell", &st.clickDwellMs, 40, 600, ms,
+                              I18n::Tr("stash_dwell_tip"));
     }
     PluginUi::EndCard();
     ImGui::EndDisabled();   // !st.enabled
     ImGui::Spacing();
 
     // --- Diagnostics ----------------------------------------------------------------
-    if (PluginUi::BeginDiagnostics("What the stash logic sees: host support, stash objects, the last tab list, the plan\n"
-                                   "and the last run.",
-                                   "stashDiag")) {
-        std::snprintf(buf, sizeof(buf), "Host support - UI names: %s, stash tabs: %s, stash objects: %s",
-                      YesNo365(v && v->hostHasControlNames), YesNo365(v && v->hostHasStashTabs),
-                      YesNo365(v && v->hostHasStashObjects));
-        Hint(buf);
-        const char* objStatus = "";
-        switch (dg.objectsStatus) {
-            case kStashObjUnsupported:  objStatus = "not available on this POEFixer version"; break;
-            case kStashObjNotRequested: objStatus = "not requested (only while the bot runs in a town / hideout)"; break;
-            case kStashObjNotReady:     objStatus = "requested, not built yet"; break;
-            default:                    break;
+    if (PluginUi::BeginDiagnostics(I18n::Tr("stash_diag_tip"), "stashDiag")) {
+        Hint(I18n::TrF("stash_diag_host", {{"names", YesNo365(v && v->hostHasControlNames)},
+                                           {"tabs", YesNo365(v && v->hostHasStashTabs)},
+                                           {"objects", YesNo365(v && v->hostHasStashObjects)}})
+                 .c_str());
+        const char* scan = dg.scanFlags ? I18n::Tr("stash_diag_on") : I18n::Tr("stash_diag_off");
+        if (dg.objectsStatus >= 0) {
+            Hint(I18n::TrF("stash_diag_objects_count", {{"count", Num("%d", dg.objectsStatus)}, {"scan", scan}}).c_str());
+        } else {
+            const char* objStatus = dg.objectsStatus == kStashObjUnsupported    ? I18n::Tr("stash_diag_objects_unsupported")
+                                    : dg.objectsStatus == kStashObjNotRequested ? I18n::Tr("stash_diag_objects_not_requested")
+                                                                                : I18n::Tr("stash_diag_objects_not_ready");
+            Hint(I18n::TrF("stash_diag_objects", {{"status", objStatus}, {"scan", scan}}).c_str());
         }
-        if (dg.objectsStatus >= 0)
-            std::snprintf(buf, sizeof(buf), "Host stash list: %d object(s); wider entity scan %s", dg.objectsStatus,
-                          dg.scanFlags ? "on" : "off");
-        else
-            std::snprintf(buf, sizeof(buf), "Host stash list: %s; wider entity scan %s", objStatus, dg.scanFlags ? "on" : "off");
-        Hint(buf);
 
         // Stash objects the bot knows in this area.
         int known = 0;
@@ -420,61 +389,73 @@ void FollowBotPlugin::DrawTabStash() {
                 if (it.kind == InteractKind::Stash || it.kind == InteractKind::GuildStash) ++known;
         if (known > 0 &&
             ImGui::BeginTable("##stashObjs", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_PadOuterX)) {
-            ImGui::TableSetupColumn("Stash", ImGuiTableColumnFlags_WidthStretch, 2.0f);
-            ImGui::TableSetupColumn("Id", ImGuiTableColumnFlags_WidthStretch, 1.0f);
-            ImGui::TableSetupColumn("Cell", ImGuiTableColumnFlags_WidthStretch, 2.0f);
-            ImGui::TableSetupColumn("Distance", ImGuiTableColumnFlags_WidthStretch, 1.5f);
+            ImGui::TableSetupColumn(I18n::TrId("stash_target"), ImGuiTableColumnFlags_WidthStretch, 2.0f);
+            ImGui::TableSetupColumn(I18n::TrId("stash_col_id"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(I18n::TrId("stash_col_cell"), ImGuiTableColumnFlags_WidthStretch, 2.0f);
+            ImGui::TableSetupColumn(I18n::TrId("loot_col_distance"), ImGuiTableColumnFlags_WidthStretch, 1.5f);
             ImGui::TableHeadersRow();
             for (const auto& it : v->interactables) {
                 if (it.kind != InteractKind::Stash && it.kind != InteractKind::GuildStash) continue;
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::Text("%s%s", InteractKindName(it.kind), it.visibleNow ? "" : " (remembered)");
+                if (it.visibleNow) ImGui::TextUnformatted(I18n::Tr(InteractKindName(it.kind)));
+                else ImGui::TextUnformatted(I18n::TrF("stash_diag_remembered", {{"kind", I18n::Tr(InteractKindName(it.kind))}}).c_str());
                 ImGui::TableNextColumn();
                 ImGui::Text("%u", it.id);
                 ImGui::TableNextColumn();
                 ImGui::Text("%.0f, %.0f", it.grid.x, it.grid.y);
                 ImGui::TableNextColumn();
-                ImGui::Text("%.0f cells", Dist(it.grid, v->selfGrid));
+                ImGui::TextUnformatted(
+                    I18n::TrF("stash_diag_cells", {{"cells", Num("%.0f", Dist(it.grid, v->selfGrid))}}).c_str());
             }
             ImGui::EndTable();
         } else {
-            Hint("No stash object known in this area.");
+            Hint(I18n::Tr("stash_diag_no_objects"));
         }
         for (const auto& o : dg.objects) {
-            std::snprintf(buf, sizeof(buf), "Host: %s %u, rank %d, cell %.0f, %.0f - %s", o.guild ? "guild stash" : "stash", o.id,
-                          o.rank, o.grid.x, o.grid.y, o.path.c_str());
-            Hint(buf);
+            Hint(I18n::TrF("stash_diag_host_object", {{"kind", o.guild ? I18n::Tr("stash_domain_guild") : I18n::Tr("stash_domain_own")},
+                                                      {"id", Num("%u", o.id)},
+                                                      {"rank", Num("%d", o.rank)},
+                                                      {"x", Num("%.0f", o.grid.x)},
+                                                      {"y", Num("%.0f", o.grid.y)},
+                                                      {"path", o.path}})
+                     .c_str());
         }
 
         // Tabs.
         ImGui::Spacing();
         if (dg.tabsStatus == -3) {
-            Hint("Tabs: not read yet (read while a stash run switches tabs).");
+            Hint(I18n::Tr("stash_diag_tabs_unread"));
         } else {
-            const char* st2 = dg.tabsStatus == -2 ? "not supported by this POEFixer version"
-                              : dg.tabsStatus == -1 ? "the panel was not open" : "";
             if (dg.tabsStatus >= 0)
-                std::snprintf(buf, sizeof(buf), "Tabs of the %s, %.1f s ago: %d; list toggle %s", dg.tabsGuild ? "guild stash" : "stash",
-                              v ? static_cast<double>(v->nowMs - (std::min)(v->nowMs, dg.tabsMs)) / 1000.0 : 0.0,
-                              dg.tabsStatus, dg.toggleOnScreen ? "visible" : "not available");
+                Hint(I18n::TrF("stash_diag_tabs",
+                               {{"stash", dg.tabsGuild ? I18n::Tr("stash_domain_guild") : I18n::Tr("stash_domain_own")},
+                                {"seconds", Num("%.1f", v ? static_cast<double>(v->nowMs - (std::min)(v->nowMs, dg.tabsMs)) / 1000.0
+                                                          : 0.0)},
+                                {"count", Num("%d", dg.tabsStatus)},
+                                {"toggle", dg.toggleOnScreen ? I18n::Tr("stash_diag_toggle_visible")
+                                                             : I18n::Tr("stash_diag_toggle_unavailable")}})
+                         .c_str());
             else
-                std::snprintf(buf, sizeof(buf), "Tabs: %s", st2);
-            Hint(buf);
+                Hint(I18n::TrF("stash_diag_tabs_status", {{"status", dg.tabsStatus == -2 ? I18n::Tr("stash_diag_tabs_unsupported")
+                                                                                         : I18n::Tr("stash_diag_panel_closed")}})
+                         .c_str());
             if (!dg.tabs.empty() &&
                 ImGui::BeginTable("##stashTabsDiag", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_PadOuterX)) {
-                ImGui::TableSetupColumn("Tab", ImGuiTableColumnFlags_WidthStretch, 3.0f);
-                ImGui::TableSetupColumn("Selected", ImGuiTableColumnFlags_WidthStretch, 1.5f);
-                ImGui::TableSetupColumn("On screen", ImGuiTableColumnFlags_WidthStretch, 1.5f);
+                ImGui::TableSetupColumn(I18n::TrId("stash_col_tab"), ImGuiTableColumnFlags_WidthStretch, 3.0f);
+                ImGui::TableSetupColumn(I18n::TrId("stash_col_selected"), ImGuiTableColumnFlags_WidthStretch, 1.5f);
+                ImGui::TableSetupColumn(I18n::TrId("stash_col_on_screen"), ImGuiTableColumnFlags_WidthStretch, 1.5f);
                 ImGui::TableHeadersRow();
                 for (const auto& t : dg.tabs) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
-                    ImGui::Text("%d  %s", t.index, t.name.c_str());
+                    ImGui::Text("%d", t.index);
+                    ImGui::SameLine(0.0f, ImGui::GetFontSize());
+                    ImGui::TextUnformatted(t.name.c_str());
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted(t.active == 1 ? "yes" : t.active == 0 ? "no" : "?");
+                    ImGui::TextUnformatted(t.active == 1 ? I18n::Tr("common_yes") : t.active == 0 ? I18n::Tr("common_no") : "?");
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted(t.onScreen ? "yes" : "no");
+                    ImGui::TextUnformatted(ui::YesNo(t.onScreen));
                 }
                 ImGui::EndTable();
             }
@@ -483,41 +464,43 @@ void FollowBotPlugin::DrawTabStash() {
         // Plan.
         ImGui::Spacing();
         if (dg.planMs == 0) {
-            Hint("Plan: none yet (made when a run could start, and when the stash opens).");
+            Hint(I18n::Tr("stash_diag_no_plan"));
         } else {
             int total = 0;
             for (const auto& g : dg.plan) total += g.items;
-            std::snprintf(buf, sizeof(buf), "Plan: %d item(s) to stash, %d kept, %d on protected cells", total, dg.planKept,
-                          dg.planProtected);
-            Hint(buf);
-            for (const auto& g : dg.plan) {
-                std::snprintf(buf, sizeof(buf), "    %s: %d", g.tab.empty() ? "the open tab" : g.tab.c_str(), g.items);
-                Hint(buf);
-            }
+            Hint(I18n::TrF("stash_diag_plan", {{"items", Num("%d", total)},
+                                               {"kept", Num("%d", dg.planKept)},
+                                               {"protected", Num("%d", dg.planProtected)}})
+                     .c_str());
+            ImGui::Indent();
+            for (const auto& g : dg.plan)
+                Hint(I18n::TrF("stash_diag_plan_group", {{"tab", g.tab.empty() ? std::string(I18n::Tr("stash_open_tab")) : g.tab},
+                                                         {"items", Num("%d", g.items)}})
+                         .c_str());
+            ImGui::Unindent();
         }
 
         // The run.
         ImGui::Spacing();
-        if (!dg.trigger.empty()) {
-            std::snprintf(buf, sizeof(buf), "Run: %s - %s; %d moved, %d skipped", dg.trigger.c_str(), dg.phase.c_str(), dg.moved,
-                          dg.skipped);
-            Hint(buf);
-        } else if (running && !dg.whyNot.empty()) {
-            std::snprintf(buf, sizeof(buf), "No automatic run: %s", dg.whyNot.c_str());
-            Hint(buf);
+        if (dg.trigger && dg.trigger[0]) {
+            Hint(I18n::TrF("stash_diag_run", {{"trigger", I18n::Tr(dg.trigger)},
+                                              {"phase", dg.phase && dg.phase[0] ? I18n::Tr(dg.phase) : ""},
+                                              {"moved", Num("%d", dg.moved)},
+                                              {"skipped", Num("%d", dg.skipped)}})
+                     .c_str());
+        } else if (running && dg.whyNot && dg.whyNot[0]) {
+            Hint(I18n::TrF("stash_diag_no_auto_run", {{"why", I18n::Tr(dg.whyNot)}}).c_str());
         }
-        if (!dg.lastResult.empty()) {
-            std::snprintf(buf, sizeof(buf), "Last run: %s", dg.lastResult.c_str());
-            Hint(buf);
-        }
+        if (!dg.lastResult.empty()) Hint(I18n::TrF("stash_diag_last_run", {{"result", ui::Text(dg.lastResult)}}).c_str());
         if (!dg.lastFailure.empty()) {
             const double ago = v && dg.lastFailureMs && v->nowMs >= dg.lastFailureMs
                                    ? static_cast<double>(v->nowMs - dg.lastFailureMs) / 1000.0
                                    : 0.0;
-            std::snprintf(buf, sizeof(buf), "Last failure (%.0f s ago): %s", ago, dg.lastFailure.c_str());
-            ui::ColoredWrapped(pal.Error, buf);
+            ui::ColoredWrapped(pal.Error, I18n::TrF("travel_diag_last_failure", {{"seconds", Num("%.0f", ago)},
+                                                                                 {"why", ui::Text(dg.lastFailure)}})
+                                              .c_str());
         }
-        for (const auto& w : dg.warnings) ui::Warning(w.c_str());
+        for (const auto& w : dg.warnings) ui::Warning(ui::Text(w).c_str());
         PluginUi::EndDiagnostics();
     }
     if (changed) MarkDirty();

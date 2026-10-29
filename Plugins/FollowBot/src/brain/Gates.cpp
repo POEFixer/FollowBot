@@ -6,23 +6,23 @@ namespace fb {
 const char* GateReasonText(GateReason r) {
     switch (r) {
         case GateReason::None:           return "";
-        case GateReason::Stopped:        return "Stopped";
-        case GateReason::MaxRuntime:     return "Run-time limit reached";
-        case GateReason::Paused:         return "Paused (hotkey)";
-        case GateReason::OverrideHeld:   return "Override key held";
-        case GateReason::NotAttached:    return "Game not attached";
-        case GateReason::Loading:        return "Loading";
-        case GateReason::EscapeMenu:     return "Game menu open";
-        case GateReason::NotInGame:      return "Not in game";
-        case GateReason::NotForeground:  return "Game not in front";
-        case GateReason::MenuVisible:    return "POEFixer menu open";
-        case GateReason::HostAutomation: return "POEFixer automation running";
-        case GateReason::UserActivity:   return "You are playing (input detected)";
-        case GateReason::PanelUnknown:   return "Checking open panels";
-        case GateReason::ForeignPanel:   return "A panel is open";
+        case GateReason::Stopped:        return Key("gate_stopped");
+        case GateReason::MaxRuntime:     return Key("gate_max_runtime");
+        case GateReason::Paused:         return Key("gate_paused");
+        case GateReason::OverrideHeld:   return Key("gate_override_held");
+        case GateReason::NotAttached:    return Key("gate_not_attached");
+        case GateReason::Loading:        return Key("gate_loading");
+        case GateReason::EscapeMenu:     return Key("gate_escape_menu");
+        case GateReason::NotInGame:      return Key("gate_not_in_game");
+        case GateReason::NotForeground:  return Key("gate_not_foreground");
+        case GateReason::MenuVisible:    return Key("gate_menu_visible");
+        case GateReason::HostAutomation: return Key("gate_host_automation");
+        case GateReason::UserActivity:   return Key("gate_user_activity");
+        case GateReason::PanelUnknown:   return Key("gate_panel_unknown");
+        case GateReason::ForeignPanel:   return Key("gate_foreign_panel");
         case GateReason::Count:          break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 GateResult EvaluateGates(const GameGate& g, const InventoryState& inv, const GateInputs& in, const GateParams& p) {

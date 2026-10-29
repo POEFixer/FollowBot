@@ -2,9 +2,14 @@
 // timestamped, categorised lines the Debug tab shows with a filter, plus an
 // optional daily file under <plugin>/logs/. The host log (ctx->Log) only gets
 // start/stop, area changes, task outcomes and errors; everything else is here.
+//
+// A line is a LocText (a key and its arguments): the Debug tab translates it when
+// it draws, the file gets it in English (SetEnglish; without it the key and its
+// arguments). Category names are keys too (LogCatName).
 #pragma once
 
-#include <cstdarg>
+#include "../core/LocText.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <mutex>
@@ -31,13 +36,14 @@ enum class LogCat : uint8_t {
     Count
 };
 
+// The category's key (lang/en.json), e.g. "log_cat_general".
 const char* LogCatName(LogCat c);
 
 struct LogLine {
     uint64_t    timeMs = 0;   // steady clock (fb::NowMs)
     uint64_t    seq = 0;      // increasing, never reused
     LogCat      cat = LogCat::General;
-    std::string text;
+    LocText     text;
 };
 
 class BotLog {
@@ -46,9 +52,7 @@ public:
 
     BotLog();
 
-    void Add(LogCat cat, const char* fmt, ...);
-    void AddV(LogCat cat, const char* fmt, va_list args);
-    void AddText(LogCat cat, std::string text);
+    void Add(LogCat cat, LocText text);
 
     // Copy of the buffer, oldest first.
     std::vector<LogLine> Snapshot() const;
@@ -57,6 +61,8 @@ public:
 
     // File sink: `dir` = <plugin>/logs; empty dir disables it.
     void SetFileSink(const std::filesystem::path& dir, bool enabled);
+    // How the file sink turns a line into English (the embedded English texts).
+    void SetEnglish(LocLookup english);
 
     // Repeated identical text in the same category within `windowMs` is dropped
     // (a per-tick decision must not flood the log). 0 disables the filter.
@@ -72,6 +78,7 @@ private:
     uint64_t               m_repeatWindowMs = 1500;
     std::filesystem::path  m_fileDir;
     bool                   m_fileEnabled = false;
+    LocLookup              m_english = nullptr;
 };
 
 }  // namespace fb

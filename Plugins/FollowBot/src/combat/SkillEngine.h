@@ -58,7 +58,7 @@ public:
     bool TryCast(BotContext& ctx, const Task* current);
     void Reset();
 
-    const std::vector<std::string>& WhyNot() const { return m_whyNot; }
+    const std::vector<LocText>& WhyNot() const { return m_whyNot; }
     const std::string& LastRule() const { return m_lastRule; }
     // A hold or channel is in progress (its key is down).
     bool HoldActive() const { return m_hold.active; }
@@ -123,12 +123,12 @@ private:
     void BuildFrame(BotContext& ctx);
     void UpdateTargetable(BotContext& ctx);
     bool ContinueHold(BotContext& ctx, const Task* current, bool followPath);
-    void ReleaseHold(BotContext& ctx, const char* why);
+    void ReleaseHold(BotContext& ctx, const char* why);   // `why`: a key
     bool Fire(BotContext& ctx, size_t index, const RuleTarget& target);
     bool LineOfSight(const Vec2& from, const Vec2& to);
-    void SetWhy(size_t index, const char* text);
+    void SetWhy(size_t index, const LocText& text);
 
-    std::vector<std::string> m_whyNot;
+    std::vector<LocText>     m_whyNot;
     std::vector<uint64_t>    m_lastFireMs;   // per rule index
     std::string              m_lastRule;
     uint64_t                 m_lastCastMs = 0;

@@ -11,20 +11,17 @@ namespace {
 enum class CatOutcome : uint8_t { Pass = 0, Off, RarityLow, RarityUnknown, ValueLow, Count };
 enum class ValOutcome : uint8_t { Disabled = 0, Low, Unknown, Count };
 
-// Why an item is left on the ground: [category outcome][value-rule outcome].
+// Why an item is left on the ground: [category outcome][value-rule outcome] (keys).
 constexpr const char* kSkipReasons[static_cast<int>(CatOutcome::Count)][static_cast<int>(ValOutcome::Count)] = {
     /* Pass (unused) */ {"", "", ""},
     /* Off */
-    {"its category is off", "category off, worth less than your value threshold", "category off, no price known"},
+    {Key("loot_why_category_off"), Key("loot_why_off_value_low"), Key("loot_why_off_no_price")},
     /* RarityLow */
-    {"rarity below the category minimum", "rarity too low, worth less than your value threshold",
-     "rarity too low, no price known"},
+    {Key("loot_why_rarity_low"), Key("loot_why_rarity_low_value_low"), Key("loot_why_rarity_low_no_price")},
     /* RarityUnknown */
-    {"rarity unknown (the category needs a minimum rarity)", "rarity unknown, worth less than your value threshold",
-     "rarity unknown, no price known"},
+    {Key("loot_why_rarity_unknown"), Key("loot_why_rarity_unknown_value_low"), Key("loot_why_rarity_unknown_no_price")},
     /* ValueLow */
-    {"worth less than the category minimum", "worth less than the category minimum and your value threshold",
-     "worth less than the category minimum"},
+    {Key("loot_why_value_low"), Key("loot_why_value_low_both"), Key("loot_why_value_low")},
 };
 
 CatOutcome EvaluateCategory(const LootItemInfo& item, const LootSettings& s) {
@@ -96,16 +93,17 @@ bool LootNameMatcher::Matches(const LootItemKeys& k) const {
 
 LootDecision EvaluateLoot(const LootItemInfo& item, const LootSettings& s, const LootItemKeys& keys,
                           const LootNameMatcher& include, const LootNameMatcher& exclude) {
-    if (!exclude.Empty() && exclude.Matches(keys)) return Skip("on your exclude list");
-    if (item.category == ItemCategory::Quest && s.alwaysQuestItems) return Pick("quest item");
-    if (!s.enabled) return Skip("loot pickup is off");
-    if (!include.Empty() && include.Matches(keys)) return Pick("on your include list");
+    if (!exclude.Empty() && exclude.Matches(keys)) return Skip(Key("loot_why_excluded"));
+    if (item.category == ItemCategory::Quest && s.alwaysQuestItems) return Pick(Key("loot_why_quest"));
+    if (!s.enabled) return Skip(Key("loot_why_loot_off"));
+    if (!include.Empty() && include.Matches(keys)) return Pick(Key("loot_why_included"));
 
     const CatOutcome cat = EvaluateCategory(item, s);
-    if (cat == CatOutcome::Pass) return Pick(item.category == ItemCategory::Uniques ? "unique item" : "its category is on");
+    if (cat == CatOutcome::Pass)
+        return Pick(item.category == ItemCategory::Uniques ? Key("loot_why_unique") : Key("loot_why_category_on"));
     bool valuePass = false;
     const ValOutcome val = EvaluateValue(item, s, &valuePass);
-    if (valuePass) return Pick("worth at least your value threshold");
+    if (valuePass) return Pick(Key("loot_why_value_ok"));
     return Skip(kSkipReasons[static_cast<int>(cat)][static_cast<int>(val)]);
 }
 

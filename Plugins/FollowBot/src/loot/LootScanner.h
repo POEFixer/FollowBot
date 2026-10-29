@@ -1,7 +1,8 @@
 // LootScanner.h - turns this tick's ground items (World::items) into resolved,
 // filtered pickup candidates (design §5.9). Adapter: the inner item resolution
 // (Entities.GetWorldItemInner, Inventory.ReadItem*, Components.ReadBase for the
-// size, Prices.LookupPrice) happens in LootScanner.cpp through BotContext::sdk.
+// size, Prices.LookupPriceByItem / LookupPrice) happens in LootScanner.cpp through
+// BotContext::sdk.
 //
 // Contract (this interface is final):
 //  - Update: at most every 150 ms; resolves new items (cache per entity id until
@@ -14,8 +15,11 @@
 //
 // Details: prices are looked up only while a rule uses them (the value rule
 // or a category minimum value) or the Diagnostics list is open: a host lookup
-// that misses scans the whole price list. A unique is priced by its unique
-// name, stackable loot by its base name; magic / rare equipment has no price.
+// that misses scans the whole price list. A host that prices by item (POEFixer
+// 371+) is asked by the item itself, in every game language, and items of one
+// base (a unique: one base and unique name) share the answer; an older host is
+// asked by the name the game shows: a unique by its unique name, stackable loot
+// by its base name. Magic / rare equipment has no price.
 // New items are read at most 24 per pass (a fresh area can hold 100+).
 //
 // Layout: Update (LootScanner.cpp, plugin build only) wraps the PluginSDK in an
@@ -61,7 +65,7 @@ struct LootDiagRow {
     bool         priceKnown = false;
     float        value = 0.f;         // LootSettings::currency, per stack
     bool         pick = false;
-    const char*  reason = "";         // static string
+    const char*  reason = "";         // a key (lang/en.json), static
     bool         fits = true;
     bool         blacklisted = false;
 };
@@ -127,6 +131,9 @@ private:
         LootItemKeys keys;
         bool         priceDone = false;   // looked up (or nothing to look up)
         bool         priceTrusted = false;
+        // The host could not read the item by itself (its item data still downloading): the
+        // price came by name and is asked by item again from this time (0 = not so).
+        uint64_t     priceRetryAtMs = 0;
         float        unitChaos = 0.f, unitDivine = 0.f, unitExalt = 0.f;
         uint64_t     decidedFor = 0;      // settings fingerprint the decision belongs to
         LootDecision decision;

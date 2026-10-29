@@ -13,18 +13,18 @@ namespace fb {
 
 const char* FollowTask::ModeName(Mode m) {
     switch (m) {
-        case Mode::NoLeader:      return "No leader set";
-        case Mode::Disabled:      return "Following off here";
-        case Mode::Reacquire:     return "Waiting for the leader to arrive";
-        case Mode::NotHere:       return "Leader not in this area";
-        case Mode::Holding:       return "Near the leader";
-        case Mode::Following:     return "Following";
-        case Mode::LostHold:      return "Leader just left sight";
-        case Mode::Seeking:       return "Walking to the leader's last position";
-        case Mode::WaitingAtLast: return "Waiting at the leader's last position";
-        case Mode::GaveUp:        return "Stuck: retrying soon";
+        case Mode::NoLeader:      return Key("mode_no_leader");
+        case Mode::Disabled:      return Key("mode_disabled");
+        case Mode::Reacquire:     return Key("mode_reacquire");
+        case Mode::NotHere:       return Key("mode_not_here");
+        case Mode::Holding:       return Key("mode_holding");
+        case Mode::Following:     return Key("mode_following");
+        case Mode::LostHold:      return Key("mode_lost_hold");
+        case Mode::Seeking:       return Key("mode_seeking");
+        case Mode::WaitingAtLast: return Key("mode_waiting_at_last");
+        case Mode::GaveUp:        return Key("mode_gave_up");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 Vec2 FollowTask::FormationOffset(int slot, float spacing, const Vec2& heading) {
@@ -84,7 +84,7 @@ void FollowTask::MoveToward(BotContext& ctx, const Vec2& goal, float arrival) {
     }
     if (ctx.cursorBusy) {
         StopMoving(ctx);
-        ctx.report.detail = "Waiting: another plugin is using the cursor";
+        ctx.report.detail = Tr("follow_cursor_busy");
         return;
     }
     const PlanStatus ps = ctx.planner.Update(w.self.grid, goal, ctx.now);
@@ -92,7 +92,7 @@ void FollowTask::MoveToward(BotContext& ctx, const Vec2& goal, float arrival) {
         // No path on the walkable grid (and no line of sight): walking straight
         // into the wall would only trip the stuck recovery. Wait and re-plan.
         StopMoving(ctx);
-        ctx.report.detail = "Leader unreachable from here: waiting";
+        ctx.report.detail = Tr("follow_unreachable");
         return;
     }
     m_steered = true;
@@ -102,18 +102,18 @@ void FollowTask::MoveToward(BotContext& ctx, const Vec2& goal, float arrival) {
         m_giveUpUntilMs = ctx.now + static_cast<uint64_t>(ctx.p.follow.stuck.followRetryMs);
         StopMoving(ctx);
         m_mode = Mode::GaveUp;
-        ctx.log.Add(LogCat::Move, "Follow: stuck recovery exhausted, retrying in %d ms", ctx.p.follow.stuck.followRetryMs);
+        ctx.log.Add(LogCat::Move, TrF("log_follow_gave_up", {{"ms", Num("%d", ctx.p.follow.stuck.followRetryMs)}}));
         return;
     }
     if (rs == RecoveryState::Recovering) {
         m_moving = true;
-        ctx.report.detail = std::string("Unsticking: ") + RecoveryStepName(ctx.stuck.CurrentStep());
+        ctx.report.detail = TrF("follow_unsticking", {{"step", Tr(RecoveryStepName(ctx.stuck.CurrentStep()))}});
         return;
     }
     const MoveStatus ms = ctx.mover.Steer(w, ctx.planner.Path(), goal, ctx.act, &ctx.planner, ctx.now);
     m_moving = ms == MoveStatus::Moving || ms == MoveStatus::Activating;
-    if (ms == MoveStatus::NoKey) ctx.report.detail = "No move key set (General tab)";
-    else if (ms == MoveStatus::NoProjection) ctx.report.detail = "Cannot project the path on screen";
+    if (ms == MoveStatus::NoKey) ctx.report.detail = Tr("follow_no_move_key");
+    else if (ms == MoveStatus::NoProjection) ctx.report.detail = Tr("follow_no_projection");
 }
 
 TaskStatus FollowTask::Tick(BotContext& ctx) {
@@ -134,14 +134,14 @@ TaskStatus FollowTask::TickInner(BotContext& ctx) {
         m_haveGoal = false;
         m_wantMove = false;
         StopMoving(ctx);
-        ctx.report.detail = "Set the leader's character name (General tab)";
+        ctx.report.detail = Tr("follow_set_leader");
         return TaskStatus::Running;
     }
     if ((w.gate.isTown || w.gate.isHideout) && !f.followInTownHideout) {
         m_mode = Mode::Disabled;
         m_wantMove = false;
         StopMoving(ctx);
-        ctx.report.detail = "Following in town / hideout is off";
+        ctx.report.detail = Tr("follow_town_off");
         return TaskStatus::Running;
     }
 
@@ -157,9 +157,7 @@ TaskStatus FollowTask::TickInner(BotContext& ctx) {
         if (!m_wantMove) {
             StopMoving(ctx);
             m_mode = Mode::Holding;
-            char buf[96];
-            std::snprintf(buf, sizeof(buf), "Near the leader (%.0f cells)", Dist(w.self.grid, L.info.grid));
-            ctx.report.detail = buf;
+            ctx.report.detail = TrF("follow_near_leader", {{"cells", Num("%.0f", Dist(w.self.grid, L.info.grid))}});
             return TaskStatus::Running;
         }
         m_mode = Mode::Following;
@@ -175,16 +173,16 @@ TaskStatus FollowTask::TickInner(BotContext& ctx) {
             m_wantMove = false;
             if (since != 0 && ctx.now - since < static_cast<uint64_t>(f.reacquireMs)) {
                 m_mode = Mode::Reacquire;
-                ctx.report.detail = "Waiting for the leader to arrive";
+                ctx.report.detail = Tr("mode_reacquire");
             } else {
                 m_mode = Mode::NotHere;
-                ctx.report.detail = L.lastSeenMs == 0 ? "Leader not seen yet" : "Leader not in this area";
+                ctx.report.detail = L.lastSeenMs == 0 ? Tr("follow_not_seen_yet") : Tr("mode_not_here");
             }
             return TaskStatus::Running;
         }
         if (!L.vanish.active && ctx.now - L.lastSeenMs < static_cast<uint64_t>(f.lostHoldMs) && m_haveGoal) {
             m_mode = Mode::LostHold;
-            ctx.report.detail = "Leader just left sight";
+            ctx.report.detail = Tr("mode_lost_hold");
         } else {
             // Seek his last position, then wait there with the reason.
             m_goal = L.vanish.active ? L.vanish.lastGrid : L.lastGrid;
@@ -194,19 +192,15 @@ TaskStatus FollowTask::TickInner(BotContext& ctx) {
             if (dist <= arrival) {
                 StopMoving(ctx);
                 m_mode = Mode::WaitingAtLast;
-                char buf[160];
-                if (L.vanish.active)
-                    std::snprintf(buf, sizeof(buf), "Leader left (%s): waiting at his last position",
-                                  VanishKindName(L.vanish.kind));
-                else
-                    std::snprintf(buf, sizeof(buf), "Leader out of sight: waiting at his last position");
-                ctx.report.detail = buf;
+                ctx.report.detail = L.vanish.active
+                                        ? TrF("follow_left_waiting", {{"kind", Tr(VanishKindName(L.vanish.kind))}})
+                                        : Tr("follow_out_of_sight_waiting");
                 return TaskStatus::Running;
             }
             m_mode = Mode::Seeking;
-            ctx.report.detail = L.vanish.active ? std::string("Leader left (") + VanishKindName(L.vanish.kind) +
-                                                      "): walking to his last position"
-                                                : std::string("Walking to the leader's last position");
+            ctx.report.detail = L.vanish.active
+                                    ? TrF("follow_left_walking", {{"kind", Tr(VanishKindName(L.vanish.kind))}})
+                                    : Tr("mode_seeking");
         }
         ctx.report.hasTarget = true;
         ctx.report.target = m_goal;
@@ -225,7 +219,7 @@ void WalkToTask::Start(BotContext& ctx) {
     m_result.clear();
     const Interactable* it = ctx.w.NearestInteractable(m_kind, ctx.w.self.grid);
     if (!it) {
-        m_result = std::string("No ") + InteractKindName(m_kind) + " known in this area";
+        m_result = TrF("walk_none_known", {{"kind", Tr(InteractKindName(m_kind))}});
         return;
     }
     m_targetId = it->id;
@@ -243,13 +237,15 @@ void WalkToTask::Start(BotContext& ctx) {
     p.heightFactor = ctx.p.travel.tallObjectHeightFactor;
     if (m_kind == InteractKind::Stash || m_kind == InteractKind::GuildStash) p.interactRange = ctx.p.stash.approachRingCells;
     m_wc.Start(t, p, ctx.now);
-    ctx.log.Add(LogCat::Task, "Debug walk to %s %u at (%.0f, %.0f)", InteractKindName(m_kind), it->id, it->grid.x,
-                it->grid.y);
+    ctx.log.Add(LogCat::Task, TrF("log_walk_to", {{"kind", Tr(InteractKindName(m_kind))},
+                                                  {"id", Num("%u", it->id)},
+                                                  {"x", Num("%.0f", it->grid.x)},
+                                                  {"y", Num("%.0f", it->grid.y)}}));
 }
 
 void WalkToTask::Abort(BotContext& ctx) {
     m_wc.Abort(ctx);
-    if (m_result.empty()) m_result = "Stopped";
+    if (m_result.empty()) m_result = Tr("walk_stopped");
 }
 
 TaskStatus WalkToTask::Tick(BotContext& ctx) {
@@ -264,17 +260,17 @@ TaskStatus WalkToTask::Tick(BotContext& ctx) {
     }
     if (!m_click && Dist(ctx.w.self.grid, m_wc.Target().grid) <= ctx.p.travel.interactRange) {
         ctx.mover.Stop(ctx.act);
-        m_result = "Arrived";
+        m_result = Tr("walk_arrived");
         return TaskStatus::Done;
     }
-    ctx.report.detail = std::string("Walking to the nearest ") + InteractKindName(m_kind);
+    ctx.report.detail = TrF("walk_walking_to", {{"kind", Tr(InteractKindName(m_kind))}});
     const WorldClickStatus st = m_wc.Tick(ctx);
     if (st == WorldClickStatus::Clicked) {
-        m_result = "Arrived and clicked";
+        m_result = Tr("walk_clicked");
         return TaskStatus::Done;
     }
     if (st == WorldClickStatus::Failed) {
-        m_result = "Failed: " + m_wc.FailReason();
+        m_result = TrF("walk_failed", {{"why", Tr(m_wc.FailReason())}});
         return TaskStatus::Failed;
     }
     return TaskStatus::Running;

@@ -64,15 +64,15 @@ struct StashDiagData {
     std::vector<StashPlanGroupDiag> plan;
     int      planKept = 0, planProtected = 0;
     uint64_t planMs = 0;
-    // The run.
-    std::string trigger;              // "" when no run
-    std::string phase;
-    std::string whyNot;               // why no automatic run starts now
+    // The run (keys and LocTexts: the render thread translates them).
+    const char* trigger = "";         // the trigger's key; "" when no run
+    const char* phase = "";           // the phase's key
+    const char* whyNot = "";          // why no automatic run starts now (a key)
     int         moved = 0, skipped = 0;
-    std::string lastResult;
-    std::string lastFailure;
+    LocText     lastResult;
+    LocText     lastFailure;
     uint64_t    lastFailureMs = 0;
-    std::deque<std::string> warnings; // the last few, newest last
+    std::deque<LocText> warnings;     // the last few, newest last
 };
 
 class StashDiag {
@@ -93,7 +93,7 @@ public:
     }
     uint64_t Seq() const { return m_seqAtomic.load(std::memory_order_acquire); }
 
-    static void AddWarning(StashDiagData& d, std::string w) {
+    static void AddWarning(StashDiagData& d, LocText w) {
         if (!d.warnings.empty() && d.warnings.back() == w) return;
         d.warnings.push_back(std::move(w));
         while (d.warnings.size() > 8) d.warnings.pop_front();

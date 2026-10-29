@@ -20,132 +20,120 @@ void FollowBotPlugin::DrawTabTravel() {
     TravelSettings& t = EditProfile().travel;
     const BotView* v = m_uiView.get();
     bool changed = false;
+    const char* cells = I18n::Key("unit_cells");
+    const char* ms = I18n::Key("unit_ms");
 
     // --- What to follow ------------------------------------------------------
     PluginUi::BeginCard("##travelWhat");
-    Heading(ICON_FA_DOOR_OPEN, "Follow through",
-            "When the leader disappears right next to a transition, portal or boss arena entrance, the bot\n"
-            "walks there and takes it too. It never clicks one before he has gone through.\n"
-            "Waypoints and checkpoint warps cannot be followed: the bot walks to his last position and says so.");
-    changed |= Check("Area transitions", "followTrans", &t.followTransitions,
-                     "Doors and passages to the next area.");
-    changed |= Check("Portals", "followPortals", &t.followPortals,
-                     "Player and town portals, map device portals in the hideout and the map's return portal.");
+    Heading(ICON_FA_DOOR_OPEN, I18n::Tr("travel_follow_through"), I18n::Tr("travel_follow_through_help"));
+    changed |= Check(I18n::Tr("travel_follow_transitions"), "followTrans", &t.followTransitions,
+                     I18n::Tr("travel_follow_transitions_tip"));
+    changed |= Check(I18n::Tr("travel_follow_portals"), "followPortals", &t.followPortals, I18n::Tr("travel_follow_portals_tip"));
     ImGui::Indent();
     ImGui::BeginDisabled(!t.followPortals);
-    changed |= Check("Also camp, parent and sub-area portals", "followOtherPortals", &t.followOtherPortalKinds,
-                     "Camp teleports and portals that lead back to a parent area or into a sub-area.\n"
-                     "Off by default: only portal kinds a leader normally takes are followed.");
+    changed |= Check(I18n::Tr("travel_follow_other_portals"), "followOtherPortals", &t.followOtherPortalKinds,
+                     I18n::Tr("travel_follow_other_portals_tip"));
     ImGui::EndDisabled();
     ImGui::Unindent();
-    changed |= Check("Boss arenas", "followArenas", &t.enterBossArenas,
-                     "Boss arena entrances: the bot enters right behind the leader.\n"
-                     "Off: it waits outside at his last position.");
+    changed |= Check(I18n::Tr("travel_follow_arenas"), "followArenas", &t.enterBossArenas, I18n::Tr("travel_follow_arenas_tip"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Recognising where he went ----------------------------------------------
     PluginUi::BeginCard("##travelWhere");
-    Heading(ICON_FA_MAGNIFYING_GLASS_LOCATION, "Where he went",
-            "When the leader vanishes, the object nearest his last position (within the radius below) tells\n"
-            "where he went. Objects seen earlier in the area are remembered, so a transition that is out of\n"
-            "sight still counts.");
+    Heading(ICON_FA_MAGNIFYING_GLASS_LOCATION, I18n::Tr("travel_where"), I18n::Tr("travel_where_help"));
     {
-        const LabelColumn col({"Object near his last position", "Out of range beyond", "Another object within"});
-        changed |= ui::FloatRow(col, "Object near his last position", "##vanishR", &t.vanishRadius, 3.f, 30.f, "%.0f cells",
-                                "A transition or portal this close to where he vanished explains the vanish.\n"
-                                "Larger catches more, but may pick a neighbouring object.");
-        changed |= ui::FloatRow(col, "Out of range beyond", "##oor", &t.outOfRangeCells, 60.f, 200.f, "%.0f cells",
-                                "He was at least this far from you when he vanished, with no object near him:\n"
-                                "he only walked out of sight (the bot walks after him).");
-        changed |= ui::FloatRow(col, "Another object within", "##fallbackR", &t.fallbackRadius, 5.f, 80.f, "%.0f cells",
-                                "When the object he took is gone or closed, another of the same kind this close to his\n"
-                                "last position is used instead (e.g. another map device portal).");
+        const LabelColumn col({I18n::Tr("travel_vanish_radius"), I18n::Tr("travel_out_of_range"), I18n::Tr("travel_fallback_radius")});
+        changed |= ui::FloatRow(col, I18n::Tr("travel_vanish_radius"), "##vanishR", &t.vanishRadius, 3.f, 30.f, cells, "%.0f",
+                                I18n::Tr("travel_vanish_radius_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("travel_out_of_range"), "##oor", &t.outOfRangeCells, 60.f, 200.f, cells, "%.0f",
+                                I18n::Tr("travel_out_of_range_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("travel_fallback_radius"), "##fallbackR", &t.fallbackRadius, 5.f, 80.f, cells,
+                                "%.0f", I18n::Tr("travel_fallback_radius_tip"));
     }
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Clicking ------------------------------------------------------------------
     PluginUi::BeginCard("##travelClick");
-    Heading(ICON_FA_HAND_POINTER, "Clicking the object",
-            "The bot walks up to the object, stops, hovers it until the game highlights it, then clicks.");
+    Heading(ICON_FA_HAND_POINTER, I18n::Tr("travel_clicking"), I18n::Tr("travel_clicking_help"));
     {
-        const LabelColumn col({"Click from", "Hover before click", "Hold the click", "Extra hovers", "Aim height"});
-        changed |= ui::FloatRow(col, "Click from", "##interactR", &t.interactRange, 2.f, 20.f, "%.0f cells",
-                                "Walk this close before clicking.");
-        changed |= ui::IntRow(col, "Hover before click", "##dwell", &t.hoverDwellMs, 40, 400, "%d ms",
-                              "How long the cursor rests on the object before the click\n"
-                              "(the game needs a moment to register the hover).");
-        changed |= ui::IntRow(col, "Hold the click", "##hold", &t.pressHoldMs, 20, 200, "%d ms", "How long the button is held down.");
-        changed |= ui::IntRow(col, "Extra hovers", "##rehover", &t.reHovers, 0, 4, "%d",
-                              "When the game does not highlight the object, the cursor moves a few pixels this many\n"
-                              "times before it clicks anyway.");
-        changed |= ui::FloatRow(col, "Aim height", "##aimH", &t.tallObjectHeightFactor, 0.f, 1.f, "%.2f",
-                                "Where on a tall object to aim: 0 = its foot, 1 = its top.\n"
-                                "Retries vary this a little on their own.");
+        const LabelColumn col({I18n::Tr("travel_click_from"), I18n::Tr("travel_hover"), I18n::Tr("travel_hold"),
+                               I18n::Tr("travel_rehovers"), I18n::Tr("travel_aim_height")});
+        changed |= ui::FloatRow(col, I18n::Tr("travel_click_from"), "##interactR", &t.interactRange, 2.f, 20.f, cells, "%.0f",
+                                I18n::Tr("travel_click_from_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("travel_hover"), "##dwell", &t.hoverDwellMs, 40, 400, ms, I18n::Tr("travel_hover_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("travel_hold"), "##hold", &t.pressHoldMs, 20, 200, ms, I18n::Tr("travel_hold_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("travel_rehovers"), "##rehover", &t.reHovers, 0, 4, nullptr,
+                              I18n::Tr("travel_rehovers_tip"));
+        changed |= ui::FloatRow(col, I18n::Tr("travel_aim_height"), "##aimH", &t.tallObjectHeightFactor, 0.f, 1.f, nullptr,
+                                "%.2f", I18n::Tr("travel_aim_height_tip"));
     }
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Retries -------------------------------------------------------------------
     PluginUi::BeginCard("##travelRetry");
-    Heading(ICON_FA_ROTATE, "Retries and waiting",
-            "After a click the bot waits for its own area to change. If it does not, it walks up again and\n"
-            "clicks with a slightly different aim, up to the number of tries.");
+    Heading(ICON_FA_ROTATE, I18n::Tr("travel_retries"), I18n::Tr("travel_retries_help"));
     {
-        const LabelColumn col({"Wait for the area change", "Tries", "Look for the object"});
-        changed |= ui::IntRow(col, "Wait for the area change", "##areaWait", &t.areaChangeTimeoutMs, 2000, 20000, "%d ms",
-                              "How long one click may take to load the new area.");
-        changed |= ui::IntRow(col, "Tries", "##tries", &t.maxAttempts, 1, 6, "%d",
-                              "Approach-and-click attempts before the bot gives up on following.");
-        changed |= ui::IntRow(col, "Look for the object", "##findObj", &t.findObjectMs, 1000, 15000, "%d ms",
-                              "At his last position, wait this long for the transition or portal to show up\n"
-                              "before giving up.");
+        const LabelColumn col({I18n::Tr("travel_area_wait"), I18n::Tr("travel_tries"), I18n::Tr("travel_find_object")});
+        changed |= ui::IntRow(col, I18n::Tr("travel_area_wait"), "##areaWait", &t.areaChangeTimeoutMs, 2000, 20000, ms,
+                              I18n::Tr("travel_area_wait_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("travel_tries"), "##tries", &t.maxAttempts, 1, 6, nullptr,
+                              I18n::Tr("travel_tries_tip"));
+        changed |= ui::IntRow(col, I18n::Tr("travel_find_object"), "##findObj", &t.findObjectMs, 1000, 15000, ms,
+                              I18n::Tr("travel_find_object_tip"));
     }
-    changed |= Check("Walk to his last position after a failed travel", "seekFail", &t.seekOnFailure,
-                     "On: the bot walks to where the leader vanished and waits there.\n"
-                     "Off: it stays where the travel failed until the leader shows up again.");
+    changed |= Check(I18n::Tr("travel_seek_on_failure"), "seekFail", &t.seekOnFailure, I18n::Tr("travel_seek_on_failure_tip"));
     PluginUi::EndCard();
     ImGui::Spacing();
 
     // --- Diagnostics -------------------------------------------------------------
-    if (PluginUi::BeginDiagnostics("The last time the leader vanished and how following him went.", "travelDiag")) {
+    if (PluginUi::BeginDiagnostics(I18n::Tr("travel_diag_tip"), "travelDiag")) {
         const TravelDiag d = TravelTask::Diagnostics();
-        char line[320];
         if (v) {
-            const char* now = v->vanish != VanishKind::None ? VanishKindName(v->vanish) : "none";
-            std::snprintf(line, sizeof(line), "Leader: %s   |   vanished: %s   |   task: %s",
-                          v->leaderVisible ? "in sight" : (v->leaderConfigured ? "not in sight" : "not set"), now,
-                          v->taskName.empty() ? "-" : v->taskName.c_str());
-            Hint(line);
-            if (v->taskName == std::string("Travel") && !v->taskDetail.empty()) Hint(v->taskDetail.c_str());
+            const char* leader = v->leaderVisible      ? I18n::Tr("travel_diag_in_sight")
+                                 : v->leaderConfigured ? I18n::Tr("travel_diag_not_in_sight")
+                                                       : I18n::Tr("travel_diag_not_set");
+            const char* now = v->vanish != VanishKind::None ? I18n::Tr(VanishKindName(v->vanish)) : I18n::Tr("vanish_none");
+            Hint(ui::Join({I18n::TrF("travel_diag_leader", {{"state", leader}}),
+                           I18n::TrF("travel_diag_vanished", {{"kind", now}}),
+                           I18n::TrF("travel_diag_task", {{"task", v->taskName.empty() ? I18n::Tr("common_none")
+                                                                                       : ui::KeyText(v->taskName)}})})
+                     .c_str());
+            if (v->taskName == I18n::Key("task_travel") && !v->taskDetail.empty()) Hint(ui::Text(v->taskDetail).c_str());
         }
         if (!d.haveVanish) {
-            Hint("No vanish handled yet in this session.");
+            Hint(I18n::Tr("travel_diag_no_vanish"));
         } else {
             const uint64_t nowMs = NowMs();
             const double ago = d.vanishAtMs && nowMs >= d.vanishAtMs ? static_cast<double>(nowMs - d.vanishAtMs) / 1000.0 : 0.0;
-            std::snprintf(line, sizeof(line), "Last vanish: %s, %.0f s ago   |   %s%s%s", VanishKindName(d.kind), ago,
-                          d.state.c_str(), d.detail.empty() ? "" : " - ", d.detail.c_str());
-            Hint(line);
+            std::string state = I18n::Tr(d.state && d.state[0] ? d.state : "common_none");
+            if (!d.detail.empty()) state = I18n::TrF("travel_diag_state_detail", {{"state", state}, {"detail", ui::Text(d.detail)}});
+            Hint(ui::Join({I18n::TrF("travel_diag_last_vanish", {{"kind", I18n::Tr(VanishKindName(d.kind))},
+                                                                 {"seconds", Num("%.0f", ago)}}),
+                           state})
+                     .c_str());
             if (d.haveObject) {
-                char kind[64] = "";
+                std::string kind = I18n::Tr(InteractKindName(d.objectKind));
                 if (d.objectKind == InteractKind::Portal)
-                    std::snprintf(kind, sizeof(kind), ", %s", travel::PortalKindName(d.portalType));
-                std::snprintf(line, sizeof(line), "Object: %s #%u (%s%s), %.0f cells away when chosen, %s",
-                              InteractKindName(d.objectKind), d.objectId, d.objectName.empty() ? "?" : d.objectName.c_str(),
-                              kind, d.objectDistance, d.fallbackObject ? "another of the same kind" : "the one he took");
-                Hint(line);
+                    kind = I18n::TrF("travel_diag_portal_kind", {{"kind", kind}, {"portal", I18n::Tr(travel::PortalKindName(d.portalType))}});
+                Hint(I18n::TrF(d.fallbackObject ? I18n::Key("travel_diag_object_other") : I18n::Key("travel_diag_object_his"),
+                               {{"kind", kind},
+                                {"id", Num("%u", d.objectId)},
+                                {"name", d.objectName.empty() ? std::string("?") : d.objectName},
+                                {"cells", Num("%.0f", d.objectDistance)}})
+                         .c_str());
             }
-            std::snprintf(line, sizeof(line), "Attempts: %d of %d   |   followed %d, failed %d since the plugin started",
-                          d.attempts, d.maxAttempts, d.followed, d.failed);
-            Hint(line);
+            Hint(ui::Join({I18n::TrF("travel_diag_attempts", {{"attempts", Num("%d", d.attempts)}, {"max", Num("%d", d.maxAttempts)}}),
+                           I18n::TrF("travel_diag_totals", {{"followed", Num("%d", d.followed)}, {"failed", Num("%d", d.failed)}})})
+                     .c_str());
         }
         if (!d.lastFailure.empty()) {
             const uint64_t nowMs = NowMs();
             const double ago = nowMs >= d.lastFailureMs ? static_cast<double>(nowMs - d.lastFailureMs) / 1000.0 : 0.0;
-            std::snprintf(line, sizeof(line), "Last failure (%.0f s ago): %s", ago, d.lastFailure.c_str());
-            ui::Warning(line);
+            ui::Warning(I18n::TrF("travel_diag_last_failure", {{"seconds", Num("%.0f", ago)}, {"why", ui::Text(d.lastFailure)}})
+                            .c_str());
         }
         if (v) {
             int transitions = 0, portals = 0, arenas = 0;
@@ -154,9 +142,10 @@ void FollowBotPlugin::DrawTabTravel() {
                 else if (it.kind == InteractKind::Portal) ++portals;
                 else if (it.kind == InteractKind::BossArena) ++arenas;
             }
-            std::snprintf(line, sizeof(line), "Known in this area: %d transitions, %d portals, %d boss arena entrances",
-                          transitions, portals, arenas);
-            Hint(line);
+            Hint(I18n::TrF("travel_diag_known", {{"transitions", Num("%d", transitions)},
+                                                 {"portals", Num("%d", portals)},
+                                                 {"arenas", Num("%d", arenas)}})
+                     .c_str());
         }
         PluginUi::EndDiagnostics();
     }

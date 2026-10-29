@@ -37,7 +37,7 @@ inline constexpr uint64_t kBeltMaxAgeMs = 1000;
 
 inline bool IsMouseButtonVk(int vk) { return vk == 0x01 || vk == 0x02 || vk == 0x04 || vk == 0x05 || vk == 0x06; }
 
-const char* RarityName(int rarity);   // "normal", "magic", "rare", "unique"
+const char* RarityName(int rarity);   // a key: "normal", "magic", "rare", "unique" (lower case)
 
 // Trimmed, ASCII case-insensitive name equality (buff / skill ids); empty never matches.
 bool NameEquals(std::string_view a, std::string_view b);
@@ -79,7 +79,7 @@ private:
 inline constexpr int kBeltSlots = 5;
 int BeltIndexOf(const FlaskInfo& f);
 const FlaskInfo* FindBeltSlot(const std::vector<FlaskInfo>& belt, int beltIndex);
-const char* BeltSlotName(int beltIndex);   // "Flask 1" .. "Charm 3", "not checked" for -1
+const char* BeltSlotName(int beltIndex);   // a key: "Flask 1" .. "Charm 3", "not checked" for -1
 
 // --- what a rule aims at -----------------------------------------------------------
 enum class AimKind : uint8_t { None = 0, Monster, Leader, Self, PathAhead };
@@ -93,12 +93,14 @@ TargetMode NaturalTarget(RuleKind k);
 inline int PressMsOf(const SkillRule& r) { return r.channelMs > 0 ? r.channelMs : r.holdMs; }
 inline bool IsLongPress(const SkillRule& r) { return PressMsOf(r) > kBlockingPressMaxMs; }
 
-// A short reason in a fixed buffer (no allocation per tick).
+// A short reason: a key and its arguments (the UI translates it). The engine
+// copies it into its per-rule list by assignment, which reuses the strings'
+// storage tick after tick.
 struct Reason {
-    char text[128] = {};
-    void Set(const char* fmt, ...);
-    void Clear() { text[0] = 0; }
-    bool Empty() const { return text[0] == 0; }
+    LocText text;
+    void Set(LocText t) { text = std::move(t); }
+    void Clear() { text.clear(); }
+    bool Empty() const { return text.empty(); }
 };
 
 // Everything the conditions read, gathered once per tick.
@@ -221,7 +223,7 @@ struct RuleInputs {
     uint64_t    lastFireMs = 0;
     bool        classAllowed = true;     // the running task allows this cast class
     bool        longPressAllowed = true; // holds / channels may start now (only while following)
-    const char* taskName = "";
+    const char* taskName = "";            // the running task's key ("" = none)
 };
 
 // The whole rule, cheapest and most telling conditions first. True = it may

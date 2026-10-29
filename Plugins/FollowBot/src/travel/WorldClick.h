@@ -56,7 +56,8 @@ public:
     bool Active() const { return m_phase == Phase::Approach || m_phase == Phase::Settle || m_phase == Phase::Click; }
     // True while the cursor must not be touched by anything else (hover/click).
     bool CursorCritical() const { return m_phase == Phase::Settle || m_phase == Phase::Click; }
-    const std::string& FailReason() const { return m_fail; }
+    // Why the click failed: a key (lang/en.json; click_fail_* or an act_* result), "" before any failure.
+    const char* FailReason() const { return m_fail; }
     const WorldClickTarget& Target() const { return m_target; }
 
 private:
@@ -68,7 +69,7 @@ private:
     uint64_t m_startMs = 0;
     uint64_t m_settleMs = 0;
     Vec2     m_settlePos;
-    std::string m_fail;
+    const char* m_fail = "";
 };
 
 }  // namespace fb

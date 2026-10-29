@@ -48,7 +48,7 @@ struct TriggerInputs {
 struct TriggerDecision {
     StashTrigger trigger = StashTrigger::None;
     bool         needsTrip = false;   // leave the map through an own portal around the run
-    const char*  why = "";            // why nothing starts (or what starts), one short line
+    const char*  why = "";            // why nothing starts (or what starts): a key (lang/en.json)
 };
 
 inline TriggerDecision DecideStashTrigger(const TriggerInputs& in) {
@@ -58,57 +58,56 @@ inline TriggerDecision DecideStashTrigger(const TriggerInputs& in) {
         d.why = why;
         return d;
     };
-    if (!in.enabled) return none("stashing is off");
+    if (!in.enabled) return none(Key("stash_why_off"));
     if (in.tripPending && in.inTownOrHideout) {
         d.trigger = StashTrigger::LeaveMap;
         d.needsTrip = true;
-        d.why = "finishing the leave-map trip";
+        d.why = Key("stash_why_finishing_trip");
         return d;
     }
     if (in.manual) {
         if (in.inTownOrHideout) {
             d.trigger = StashTrigger::Manual;
-            d.why = "stash now";
+            d.why = Key("stash_why_now");
             return d;
         }
         if (in.inMap && in.portalKeyBound) {
             d.trigger = StashTrigger::Manual;
             d.needsTrip = true;
-            d.why = "stash now (through a portal)";
+            d.why = Key("stash_why_now_portal");
             return d;
         }
-        return none(in.inMap ? "stash now: set a portal key to stash from a map"
-                             : "stash now: not in a town, hideout or map");
+        return none(in.inMap ? Key("stash_why_now_no_portal_key") : Key("stash_why_now_wrong_area"));
     }
     // A full or missing tab does not empty itself: an automatic run (a portal
     // trip each time) would only leave the same items behind again.
-    if (in.stashBlocked) return none("the stash tab is full or missing: make room, then press Stash now");
-    if (in.coolingDown) return none("waiting after a failed run");
+    if (in.stashBlocked) return none(Key("stash_why_blocked"));
+    if (in.coolingDown) return none(Key("stash_why_cooling_down"));
     const bool full = in.inventoryFull;
     if (in.inTownOrHideout) {
-        if (!in.opportunistic) return none("stashing in town / hideout is off");
-        if (!in.stashKnown) return none("no stash of the chosen kind here");
-        if (in.usedCells < in.stashWhenUsedCells && !full) return none("backpack below the threshold");
-        if (!in.somethingToStash) return none("nothing to stash (protected / kept)");
-        if (!in.grewSinceLastRun) return none("nothing new since the last run");
-        if (!in.leaderIdleOrAbsent) return none("the leader is moving");
+        if (!in.opportunistic) return none(Key("stash_why_town_off"));
+        if (!in.stashKnown) return none(Key("stash_why_no_stash"));
+        if (in.usedCells < in.stashWhenUsedCells && !full) return none(Key("stash_why_below_threshold"));
+        if (!in.somethingToStash) return none(Key("stash_why_nothing"));
+        if (!in.grewSinceLastRun) return none(Key("stash_why_nothing_new"));
+        if (!in.leaderIdleOrAbsent) return none(Key("stash_why_leader_moving"));
         d.trigger = StashTrigger::Opportunistic;
-        d.why = "backpack full enough";
+        d.why = Key("stash_why_full_enough");
         return d;
     }
     if (in.inMap) {
-        if (!in.leaveMapTrip) return none("leaving the map to stash is off");
-        if (!in.portalKeyBound) return none("no portal key set");
-        if (in.usedCells < in.tripWhenUsedCells && !full) return none("backpack below the trip threshold");
-        if (!in.somethingToStash) return none("nothing to stash (protected / kept)");
-        if (!in.grewSinceLastRun) return none("nothing new since the last run");
-        if (in.hostilesNear > 0) return none("enemies nearby");
+        if (!in.leaveMapTrip) return none(Key("stash_why_trip_off"));
+        if (!in.portalKeyBound) return none(Key("stash_why_no_portal_key"));
+        if (in.usedCells < in.tripWhenUsedCells && !full) return none(Key("stash_why_below_trip_threshold"));
+        if (!in.somethingToStash) return none(Key("stash_why_nothing"));
+        if (!in.grewSinceLastRun) return none(Key("stash_why_nothing_new"));
+        if (in.hostilesNear > 0) return none(Key("stash_why_enemies"));
         d.trigger = StashTrigger::LeaveMap;
         d.needsTrip = true;
-        d.why = "backpack full: leaving the map to stash";
+        d.why = Key("stash_why_trip");
         return d;
     }
-    return none("not in a town, hideout or map");
+    return none(Key("stash_why_wrong_area"));
 }
 
 // ---------------------------------------------------------------------------

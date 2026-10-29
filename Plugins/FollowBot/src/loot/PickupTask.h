@@ -66,7 +66,7 @@ private:
 
 class PickupTask : public Task {
 public:
-    const char* Name() const override { return "Pickup"; }
+    const char* Name() const override { return Key("task_pickup"); }
 
     bool WantsToStart(BotContext& ctx);
     void Start(BotContext& ctx);
@@ -83,9 +83,9 @@ public:
     const LootScanner& Scanner() const { return m_scanner; }
 
     // Why the last run ended (empty while running / after a normal Done).
-    const std::string& FailReason() const { return m_failReason; }
-    // One short line: what the loot logic does or why it does not loot right
-    // now (a static string; safe to read from the render thread).
+    const LocText& FailReason() const { return m_failReason; }
+    // What the loot logic does or why it does not loot right now: a key (a
+    // static string; safe to read from the render thread).
     const char* Status() const { return m_status.load(std::memory_order_relaxed); }
     // Items picked up since the bot started (render thread: atomic).
     int PickedTotal() const { return m_pickedTotal.load(std::memory_order_relaxed); }
@@ -100,6 +100,7 @@ private:
     const LootCandidate* ChooseTarget(const BotContext& ctx, bool* anyNoRoom) const;
     bool StillWanted(const BotContext& ctx) const;
     void BeginTarget(BotContext& ctx, const LootCandidate& c);
+    // `why`: a key (lang/en.json).
     void AttemptFailed(BotContext& ctx, const char* why);
     void GiveUp(BotContext& ctx, const char* why);
     TaskStatus Finish(BotContext& ctx, TaskStatus st, const char* why, int cooldownMs);
@@ -123,8 +124,8 @@ private:
     bool         m_haveArea = false;
     int          m_fullAtFreeCells = -1;   // free cells when the inventory-full flag was set
     int          m_pickedRun = 0;
-    std::string  m_failReason;
-    std::atomic<const char*> m_status{"idle"};
+    LocText      m_failReason;
+    std::atomic<const char*> m_status{Key("loot_status_idle")};
     std::atomic<int>         m_pickedTotal{0};
     uint64_t     m_startedSession = 0;     // BotMemory::startedMs the total belongs to
 };

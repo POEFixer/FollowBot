@@ -42,8 +42,8 @@ struct TravelDiag {
     bool         haveVanish = false;
     uint64_t     vanishAtMs = 0;
     VanishKind   kind = VanishKind::None;
-    std::string  state;               // "following", "arrived", "failed", "not followed", ...
-    std::string  detail;              // the latest step in words
+    const char*  state = "";          // a key: "travel_state_following", "travel_state_arrived", ...
+    LocText      detail;              // the latest step
     bool         haveObject = false;
     uint32_t     objectId = 0;
     InteractKind objectKind = InteractKind::Other;
@@ -53,7 +53,7 @@ struct TravelDiag {
     bool         fallbackObject = false;  // not the one he used (another of the same kind)
     int          attempts = 0;
     int          maxAttempts = 0;
-    std::string  lastFailure;         // persists across travels
+    LocText      lastFailure;         // persists across travels
     uint64_t     lastFailureMs = 0;
     int          followed = 0;        // travels that arrived since the plugin loaded
     int          failed = 0;
@@ -61,7 +61,7 @@ struct TravelDiag {
 
 class TravelTask : public Task {
 public:
-    const char* Name() const override { return "Travel"; }
+    const char* Name() const override { return Key("task_travel"); }
 
     bool WantsToStart(BotContext& ctx);
     void Start(BotContext& ctx);
@@ -72,7 +72,7 @@ public:
         return r == GateReason::Loading || r == GateReason::PanelUnknown;
     }
 
-    const std::string& FailReason() const { return m_fail; }
+    const LocText& FailReason() const { return m_fail; }
 
     // Thread-safe copy of the diagnostics (render thread).
     static TravelDiag Diagnostics();
@@ -81,18 +81,18 @@ private:
     enum class Phase : uint8_t { Idle = 0, Seek, Click, WaitArea, Stranded };
     enum class Walk : uint8_t { Moving = 0, Arrived, Unreachable, Stuck, NoKey, Waiting };
 
-    TaskStatus Finish(BotContext& ctx, TaskStatus st, const std::string& why);
-    TaskStatus AttemptFailed(BotContext& ctx, const std::string& why, uint64_t pauseMs = 350);
+    TaskStatus Finish(BotContext& ctx, TaskStatus st, const LocText& why);
+    TaskStatus AttemptFailed(BotContext& ctx, const LocText& why, uint64_t pauseMs = 350);
     void BeginClick(BotContext& ctx, const Interactable& it);
     void EnterSeek(BotContext& ctx);
     void NewAttemptDeadline(const BotContext& ctx);
     WorldClickTarget MakeTarget(const Interactable& it) const;
     Walk WalkToward(BotContext& ctx, const Vec2& goal, float arrival);
-    void SetDetail(BotContext& ctx, const std::string& text);
+    void SetDetail(BotContext& ctx, LocText text);
     void PublishObject(const BotContext& ctx, const Interactable& it);
 
     WorldClick  m_click;
-    std::string m_fail;
+    LocText     m_fail;
     Phase       m_phase = Phase::Idle;
     // The vanish being followed.
     uint64_t     m_vanishAtMs = 0;          // the vanish this state belongs to
@@ -117,7 +117,6 @@ private:
     uint64_t m_retryAfterMs = 0;            // short pause between attempts
     uint64_t m_attemptDeadlineMs = 0;       // walking + finding + clicking of this attempt ends by then
     Vec2     m_aimOffset;                   // this attempt's nudge (cells)
-    std::string m_lastDetail;
 };
 
 }  // namespace fb

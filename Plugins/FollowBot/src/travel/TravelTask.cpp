@@ -43,13 +43,14 @@ std::string ShortName(const std::string& path) {
     return std::string(p);
 }
 
-// "transition", "boss arena entrance", "portal" for log lines.
+// The object word for the detail and log lines: "transition", "boss arena
+// entrance", "portal" (keys).
 const char* ObjectWord(InteractKind k) {
     switch (k) {
-        case InteractKind::AreaTransition: return "transition";
-        case InteractKind::BossArena:      return "boss arena entrance";
-        case InteractKind::Portal:         return "portal";
-        default:                           return "object";
+        case InteractKind::AreaTransition: return Key("travel_word_transition");
+        case InteractKind::BossArena:      return Key("travel_word_arena");
+        case InteractKind::Portal:         return Key("travel_word_portal");
+        default:                           return Key("travel_word_object");
     }
 }
 
@@ -77,15 +78,15 @@ bool TravelTask::WantsToStart(BotContext& ctx) {
         return m_phase == Phase::Stranded && m_vanishAtMs == v.atMs && !s.seekOnFailure;
     }
 
-    auto notFollowed = [&](const std::string& why) {
+    auto notFollowed = [&](const LocText& why) {
         if (m_skipLoggedAtMs == v.atMs) return;
         m_skipLoggedAtMs = v.atMs;
-        ctx.log.Add(LogCat::Travel, "Leader left through a %s - not followed: %s", VanishKindName(v.kind), why.c_str());
+        ctx.log.Add(LogCat::Travel, TrF("log_travel_not_followed", {{"kind", Tr(VanishKindName(v.kind))}, {"why", why}}));
         EditDiag([&](TravelDiag& d) {
             d.haveVanish = true;
             d.vanishAtMs = v.atMs;
             d.kind = v.kind;
-            d.state = "not followed";
+            d.state = Key("travel_state_not_followed");
             d.detail = why;
             d.haveObject = false;
             d.attempts = 0;
@@ -94,7 +95,7 @@ bool TravelTask::WantsToStart(BotContext& ctx) {
     };
 
     if (!travel::KindEnabled(v.kind, s)) {
-        notFollowed(std::string("\"") + travel::KindSettingName(v.kind) + "\" is off (Travel tab)");
+        notFollowed(TrF("travel_why_setting_off", {{"setting", Tr(travel::KindSettingName(v.kind))}}));
         return false;
     }
     if (v.kind == VanishKind::Portal) {
@@ -102,32 +103,30 @@ bool TravelTask::WantsToStart(BotContext& ctx) {
         if (const Interactable* used = w.FindInteractable(v.interactableId)) {
             const travel::PortalVerdict pv = travel::ClassifyPortalKind(used->portalType, s.followOtherPortalKinds);
             if (pv == travel::PortalVerdict::OtherKindOff) {
-                notFollowed(std::string("it is a ") + travel::PortalKindName(used->portalType) +
-                            " (turn on \"Also camp, parent and sub-area portals\")");
+                notFollowed(TrF("travel_why_other_portal", {{"kind", Tr(travel::PortalKindName(used->portalType))},
+                                                            {"setting", Tr("travel_follow_other_portals")}}));
                 return false;
             }
             if (pv != travel::PortalVerdict::Follow) {
-                char buf[96];
-                std::snprintf(buf, sizeof(buf), "portal kind %d (%s)", used->portalType,
-                              travel::PortalKindName(used->portalType));
-                notFollowed(buf);
+                notFollowed(TrF("travel_why_portal_kind", {{"number", Num("%d", used->portalType)},
+                                                           {"kind", Tr(travel::PortalKindName(used->portalType))}}));
                 return false;
             }
         }
     }
     const MoverParams& mp = ctx.mover.Params();
     if (mp.moveKey <= 0 && !mp.clickToMove) {
-        notFollowed("no move key set (General tab)");
+        notFollowed(Tr("travel_why_no_move_key"));
         return false;
     }
     if (v.atMs == m_vanishAtMs && m_resumes >= kMaxResumes) {
         // Interrupted again and again (holds, preemption): stop retrying this one.
         m_finishedVanishAtMs = v.atMs;
         m_phase = Phase::Idle;
-        const std::string why = "interrupted too often";
-        ctx.log.Add(LogCat::Travel, "Travel through the %s given up: %s", VanishKindName(v.kind), why.c_str());
+        const LocText why = Tr("travel_why_interrupted");
+        ctx.log.Add(LogCat::Travel, TrF("log_travel_given_up", {{"kind", Tr(VanishKindName(v.kind))}, {"why", why}}));
         EditDiag([&](TravelDiag& d) {
-            d.state = "failed";
+            d.state = Key("travel_state_failed");
             d.lastFailure = why;
             d.lastFailureMs = ctx.now;
             ++d.failed;
@@ -148,11 +147,12 @@ void TravelTask::Start(BotContext& ctx) {
         ++m_resumes;
         if (m_phase == Phase::WaitArea) {
             // The click happened: keep waiting (a timeout counts as a failed attempt in Tick).
-            ctx.log.Add(LogCat::Travel, "Travel resumed: waiting for the area to change");
+            ctx.log.Add(LogCat::Travel, Tr("log_travel_resumed_waiting"));
         } else if (m_phase != Phase::Stranded) {
             EnterSeek(ctx);
             NewAttemptDeadline(ctx);
-            ctx.log.Add(LogCat::Travel, "Travel resumed (attempt %d of %d)", m_attempts + 1, s.maxAttempts);
+            ctx.log.Add(LogCat::Travel, TrF("log_travel_resumed", {{"attempt", Num("%d", m_attempts + 1)},
+                                                                   {"max", Num("%d", s.maxAttempts)}}));
         }
         return;
     }
@@ -172,19 +172,19 @@ void TravelTask::Start(BotContext& ctx) {
     m_retryAfterMs = 0;
     m_aimOffset = {};
     m_fail.clear();
-    m_lastDetail.clear();
     EnterSeek(ctx);
     NewAttemptDeadline(ctx);
 
     const float dist = Dist(w.self.grid, m_anchor);
-    ctx.log.Add(LogCat::Travel, "Leader left through a %s (object #%u, %.0f cells from us): following", VanishKindName(v.kind),
-                v.interactableId, dist);
+    ctx.log.Add(LogCat::Travel, TrF("log_travel_following", {{"kind", Tr(VanishKindName(v.kind))},
+                                                             {"id", Num("%u", v.interactableId)},
+                                                             {"cells", Num("%.0f", dist)}}));
     EditDiag([&](TravelDiag& d) {
         d.haveVanish = true;
         d.vanishAtMs = v.atMs;
         d.kind = v.kind;
-        d.state = "following";
-        d.detail = "walking to the object";
+        d.state = Key("travel_state_following");
+        d.detail = Tr("travel_diag_walking");
         d.haveObject = false;
         d.attempts = 0;
         d.maxAttempts = s.maxAttempts;
@@ -216,8 +216,8 @@ bool TravelTask::AllowsCasts(CastClass c) const {
 // Helpers
 // ---------------------------------------------------------------------------
 
-void TravelTask::SetDetail(BotContext& ctx, const std::string& text) {
-    ctx.report.detail = text;
+void TravelTask::SetDetail(BotContext& ctx, LocText text) {
+    ctx.report.detail = std::move(text);
 }
 
 void TravelTask::PublishObject(const BotContext& ctx, const Interactable& it) {
@@ -274,7 +274,7 @@ void TravelTask::BeginClick(BotContext& ctx, const Interactable& it) {
     m_click.Start(MakeTarget(it), p, ctx.now);
     m_phase = Phase::Click;
     m_phaseMs = ctx.now;
-    EditDiag([&](TravelDiag& d) { d.detail = "approaching and clicking"; });
+    EditDiag([&](TravelDiag& d) { d.detail = Tr("travel_diag_clicking"); });
 }
 
 TravelTask::Walk TravelTask::WalkToward(BotContext& ctx, const Vec2& goal, float arrival) {
@@ -311,7 +311,7 @@ TravelTask::Walk TravelTask::WalkToward(BotContext& ctx, const Vec2& goal, float
     return Walk::Moving;
 }
 
-TaskStatus TravelTask::Finish(BotContext& ctx, TaskStatus st, const std::string& why) {
+TaskStatus TravelTask::Finish(BotContext& ctx, TaskStatus st, const LocText& why) {
     m_click.Abort(ctx);
     ctx.mover.Stop(ctx.act);
     m_finishedVanishAtMs = m_vanishAtMs;
@@ -320,19 +320,20 @@ TaskStatus TravelTask::Finish(BotContext& ctx, TaskStatus st, const std::string&
         m_fail.clear();
         m_phase = Phase::Idle;
         const bool arrived = ctx.w.gate.areaCounter != m_startArea;
-        ctx.log.Add(LogCat::Travel, "Travel %s: %s (%.1f s)", arrived ? "arrived" : "ended", why.c_str(), secs);
+        ctx.log.Add(LogCat::Travel, TrF(arrived ? Key("log_travel_arrived") : Key("log_travel_ended"),
+                                        {{"why", why}, {"seconds", Num("%.1f", secs)}}));
         EditDiag([&](TravelDiag& d) {
-            d.state = arrived ? "arrived" : "ended";
+            d.state = arrived ? Key("travel_state_arrived") : Key("travel_state_ended");
             d.detail = why;
             if (arrived) ++d.followed;
         });
         return st;
     }
     m_fail = why;
-    ctx.log.Add(LogCat::Travel, "Travel failed after %.1f s: %s", secs, why.c_str());
+    ctx.log.Add(LogCat::Travel, TrF("log_travel_failed", {{"seconds", Num("%.1f", secs)}, {"why", why}}));
     const bool strand = !ctx.p.travel.seekOnFailure;
     EditDiag([&](TravelDiag& d) {
-        d.state = strand ? "failed, staying here" : "failed";
+        d.state = strand ? Key("travel_state_failed_staying") : Key("travel_state_failed");
         d.detail = why;
         d.lastFailure = why;
         d.lastFailureMs = ctx.now;
@@ -342,15 +343,15 @@ TaskStatus TravelTask::Finish(BotContext& ctx, TaskStatus st, const std::string&
         // "Walk to his last position after a failed travel" is off: stay here (Running) until he shows up.
         m_phase = Phase::Stranded;
         m_phaseMs = ctx.now;
-        ctx.mem.lastError = "Travel: " + why;
-        ctx.log.Add(LogCat::Travel, "Staying here until the leader shows up (walking to his last position is off)");
+        ctx.mem.lastError = TrF("error_travel", {{"why", why}});
+        ctx.log.Add(LogCat::Travel, Tr("log_travel_staying"));
         return TaskStatus::Running;
     }
     m_phase = Phase::Idle;
     return TaskStatus::Failed;
 }
 
-TaskStatus TravelTask::AttemptFailed(BotContext& ctx, const std::string& why, uint64_t pauseMs) {
+TaskStatus TravelTask::AttemptFailed(BotContext& ctx, const LocText& why, uint64_t pauseMs) {
     const TravelSettings& s = ctx.p.travel;
     m_click.Abort(ctx);
     ctx.mover.Stop(ctx.act);
@@ -360,12 +361,11 @@ TaskStatus TravelTask::AttemptFailed(BotContext& ctx, const std::string& why, ui
         d.lastFailure = why;
         d.lastFailureMs = ctx.now;
     });
-    if (m_attempts >= s.maxAttempts) {
-        char buf[64];
-        std::snprintf(buf, sizeof(buf), " (%d %s)", m_attempts, m_attempts == 1 ? "try" : "tries");
-        return Finish(ctx, TaskStatus::Failed, why + buf);
-    }
-    ctx.log.Add(LogCat::Travel, "Travel attempt %d of %d failed: %s - trying again", m_attempts, s.maxAttempts, why.c_str());
+    if (m_attempts >= s.maxAttempts)
+        return Finish(ctx, TaskStatus::Failed, TrF("travel_why_tries", {{"why", why}, {"tries", Num("%d", m_attempts)}}));
+    ctx.log.Add(LogCat::Travel, TrF("log_travel_attempt_failed", {{"attempt", Num("%d", m_attempts)},
+                                                                  {"max", Num("%d", s.maxAttempts)},
+                                                                  {"why", why}}));
     m_retryAfterMs = ctx.now + pauseMs;
     EnterSeek(ctx);
     NewAttemptDeadline(ctx);
@@ -382,60 +382,60 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
     const World& w = ctx.w;
     const LeaderState& L = w.leader;
     const TravelSettings& s = ctx.p.travel;
-    char buf[192];
 
     // Our area changed (the click worked, or anything else moved us): FollowTask
     // reacquires the leader there.
     if (w.gate.areaCounter != m_startArea) {
-        std::snprintf(buf, sizeof(buf), "now in %s", w.gate.areaId.empty() ? "a new area" : w.gate.areaId.c_str());
-        return Finish(ctx, TaskStatus::Done, buf);
+        return Finish(ctx, TaskStatus::Done,
+                      w.gate.areaId.empty() ? Tr("travel_now_in_new_area")
+                                            : TrF("travel_now_in", {{"area", w.gate.areaId}}));
     }
     // He is in sight again: nothing to follow (also ends a stranded wait).
-    if (L.visible) return Finish(ctx, TaskStatus::Done, "the leader is in sight again");
+    if (L.visible) return Finish(ctx, TaskStatus::Done, Tr("travel_leader_in_sight"));
 
     if (m_phase == Phase::Stranded) {
         ctx.stuck.NoteIdle(w, ctx.now);
-        SetDetail(ctx, "Could not follow (" + m_fail + "): staying here until the leader shows up");
+        SetDetail(ctx, TrF("travel_detail_stranded", {{"why", m_fail}}));
         return TaskStatus::Running;
     }
     if (!w.self.valid) {
         ctx.stuck.NoteIdle(w, ctx.now);
-        SetDetail(ctx, "Travel: waiting for the game");
+        SetDetail(ctx, Tr("travel_detail_waiting_game"));
         return TaskStatus::Running;
     }
     if (ctx.now < m_retryAfterMs) {
         ctx.stuck.NoteIdle(w, ctx.now);
-        std::snprintf(buf, sizeof(buf), "Travel: trying again (attempt %d of %d)", m_attempts + 1, s.maxAttempts);
-        SetDetail(ctx, buf);
+        SetDetail(ctx, TrF("travel_detail_retry", {{"attempt", Num("%d", m_attempts + 1)}, {"max", Num("%d", s.maxAttempts)}}));
         return TaskStatus::Running;
     }
 
-    const char* word = ObjectWord(m_targetKind);
-    ctx.report.markers.push_back({m_leaderLast, 0xFF40C0FFu, "His last"});
+    const LocText word = Tr(ObjectWord(m_targetKind));
+    ctx.report.markers.push_back({m_leaderLast, 0xFF40C0FFu, Key("marker_his_last")});
 
     if (m_phase == Phase::WaitArea) {
         ctx.stuck.NoteIdle(w, ctx.now);
         const uint64_t waited = ctx.now - m_clickMs;
         if (waited >= static_cast<uint64_t>(s.areaChangeTimeoutMs))
-            return AttemptFailed(ctx, "the area did not change after the click");
-        std::snprintf(buf, sizeof(buf), "Travel: clicked the %s, waiting for the area to change (%.1f s)", word,
-                      static_cast<double>(waited) / 1000.0);
-        SetDetail(ctx, buf);
+            return AttemptFailed(ctx, Tr("travel_why_no_area_change"));
+        SetDetail(ctx, TrF("travel_detail_clicked_waiting", {{"object", word},
+                                                             {"seconds", Num("%.1f", static_cast<double>(waited) / 1000.0)}}));
         return TaskStatus::Running;
     }
 
     // Walking, finding and clicking of one attempt are bounded together (the
     // object may drop in and out of the entity list while we walk).
     if (ctx.now > m_attemptDeadlineMs && !m_click.CursorCritical())
-        return AttemptFailed(ctx, std::string("could not reach the ") + word + " in time");
+        return AttemptFailed(ctx, TrF("travel_why_not_in_time", {{"object", word}}));
 
     // The object to click, re-resolved every tick.
     const Interactable* t =
         travel::ResolveTarget(w.interactables, m_targetId, m_targetKind, m_leaderLast, s.fallbackRadius, s, m_excludeId);
     if (t && t->id != m_targetId) {
         m_targetId = t->id;
-        ctx.log.Add(LogCat::Travel, "Travel: using %s #%u (%s, %.0f cells from his last position)", word, t->id,
-                    t->id == m_usedId ? "the one he took" : "another of the same kind", Dist(t->grid, m_leaderLast));
+        ctx.log.Add(LogCat::Travel, TrF(t->id == m_usedId ? Key("log_travel_using_his") : Key("log_travel_using_other"),
+                                        {{"object", word},
+                                         {"id", Num("%u", t->id)},
+                                         {"cells", Num("%.0f", Dist(t->grid, m_leaderLast))}}));
         PublishObject(ctx, *t);
         if (m_phase == Phase::Click) {
             m_click.Abort(ctx);
@@ -443,7 +443,7 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
         }
     } else if (!t && m_targetId != 0) {
         // The chosen one is no longer usable (closed, implausible) and no other is near.
-        ctx.log.Add(LogCat::Travel, "Travel: %s #%u is no longer usable", word, m_targetId);
+        ctx.log.Add(LogCat::Travel, TrF("log_travel_unusable", {{"object", word}, {"id", Num("%u", m_targetId)}}));
         m_excludeId = m_targetId;
         m_targetId = 0;
         if (m_phase == Phase::Click) {
@@ -452,7 +452,7 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
         }
     }
 
-    if (t) ctx.report.markers.push_back({t->grid, 0xFF00FFFFu, "Travel"});
+    if (t) ctx.report.markers.push_back({t->grid, 0xFF00FFFFu, Key("task_travel")});
 
     // A clickable object in our entity list: approach and click it.
     if (m_phase != Phase::Click && t && t->visibleNow) BeginClick(ctx, *t);
@@ -467,23 +467,26 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
             if (st == WorldClickStatus::Clicked) {
                 m_clickMs = ctx.now;
                 m_phase = Phase::WaitArea;
-                ctx.log.Add(LogCat::Travel, "Travel: clicked %s #%u (attempt %d of %d)", word, t->id, m_attempts + 1,
-                            s.maxAttempts);
-                EditDiag([&](TravelDiag& d) { d.detail = "clicked, waiting for the area to change"; });
-                SetDetail(ctx, std::string("Travel: clicked the ") + word + ", waiting for the area to change");
+                ctx.log.Add(LogCat::Travel, TrF("log_travel_clicked", {{"object", word},
+                                                                       {"id", Num("%u", t->id)},
+                                                                       {"attempt", Num("%d", m_attempts + 1)},
+                                                                       {"max", Num("%d", s.maxAttempts)}}));
+                EditDiag([&](TravelDiag& d) { d.detail = Tr("travel_diag_clicked"); });
+                SetDetail(ctx, TrF("travel_detail_clicked", {{"object", word}}));
                 return TaskStatus::Running;
             }
             if (st == WorldClickStatus::Failed) {
                 const std::string why = m_click.FailReason();
-                if (why == "no move key set") return Finish(ctx, TaskStatus::Failed, "no move key set (General tab)");
+                if (why == Key("click_fail_no_move_key")) return Finish(ctx, TaskStatus::Failed, Tr("travel_why_no_move_key"));
                 // No path right now may be a passing block: give the planner time before the next try.
-                const bool noPath = why == "object unreachable";
-                return AttemptFailed(ctx, why.empty() ? std::string("the click failed") : why,
+                const bool noPath = why == Key("click_fail_unreachable");
+                return AttemptFailed(ctx, why.empty() ? Tr("travel_why_click_failed") : Tr(why.c_str()),
                                      noPath ? kUnreachableRetryPauseMs : kRetryPauseMs);
             }
-            if (m_click.CursorCritical()) std::snprintf(buf, sizeof(buf), "Travel: clicking the %s", word);
-            else std::snprintf(buf, sizeof(buf), "Travel: walking to the %s (%.0f cells)", word, Dist(w.self.grid, t->grid));
-            SetDetail(ctx, buf);
+            if (m_click.CursorCritical()) SetDetail(ctx, TrF("travel_detail_clicking", {{"object", word}}));
+            else
+                SetDetail(ctx, TrF("travel_detail_walking", {{"object", word},
+                                                             {"cells", Num("%.0f", Dist(w.self.grid, t->grid))}}));
             return TaskStatus::Running;
         }
     }
@@ -495,10 +498,10 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
     if (t) {
         // Remembered from earlier: walk to where it stood until it shows up again.
         if (travel::LooksGone(*t, w.self.grid, ctx.now, kGoneNearCells, kGoneAfterMs)) {
-            ctx.log.Add(LogCat::Travel, "Travel: %s #%u is gone (not listed although we are close)", word, t->id);
+            ctx.log.Add(LogCat::Travel, TrF("log_travel_gone", {{"object", word}, {"id", Num("%u", t->id)}}));
             m_excludeId = t->id;
             m_targetId = 0;
-            SetDetail(ctx, std::string("Travel: the ") + word + " is gone, looking for another");
+            SetDetail(ctx, TrF("travel_detail_gone", {{"object", word}}));
             return TaskStatus::Running;
         }
         goal = t->grid;
@@ -507,33 +510,29 @@ TaskStatus TravelTask::Tick(BotContext& ctx) {
     const Walk wr = WalkToward(ctx, goal, arrival);
     switch (wr) {
         case Walk::NoKey:
-            return Finish(ctx, TaskStatus::Failed, "no move key set (General tab)");
+            return Finish(ctx, TaskStatus::Failed, Tr("travel_why_no_move_key"));
         case Walk::Stuck:
-            return AttemptFailed(ctx, "stuck on the way");
+            return AttemptFailed(ctx, Tr("click_fail_stuck"));
         case Walk::Unreachable:
             if (m_unreachableSinceMs == 0) m_unreachableSinceMs = ctx.now;
             if (ctx.now - m_unreachableSinceMs >= kUnreachableFailMs)
-                return AttemptFailed(ctx, std::string("no path to the ") + word);
-            SetDetail(ctx, std::string("Travel: no path to the ") + word + " yet");
+                return AttemptFailed(ctx, TrF("travel_why_no_path", {{"object", word}}));
+            SetDetail(ctx, TrF("travel_detail_no_path_yet", {{"object", word}}));
             return TaskStatus::Running;
         case Walk::Waiting:
-            SetDetail(ctx, "Travel: waiting (another plugin is using the cursor)");
+            SetDetail(ctx, Tr("travel_detail_cursor_busy"));
             return TaskStatus::Running;
         case Walk::Arrived:
             if (m_arrivedAnchorMs == 0) m_arrivedAnchorMs = ctx.now;
-            if (ctx.now - m_arrivedAnchorMs >= static_cast<uint64_t>(s.findObjectMs)) {
-                std::snprintf(buf, sizeof(buf), "no %s found near his last position", word);
-                return Finish(ctx, TaskStatus::Failed, buf);
-            }
-            std::snprintf(buf, sizeof(buf), "Travel: looking for the %s near his last position", word);
-            SetDetail(ctx, buf);
+            if (ctx.now - m_arrivedAnchorMs >= static_cast<uint64_t>(s.findObjectMs))
+                return Finish(ctx, TaskStatus::Failed, TrF("travel_why_not_found", {{"object", word}}));
+            SetDetail(ctx, TrF("travel_detail_looking", {{"object", word}}));
             return TaskStatus::Running;
         case Walk::Moving:
             break;
     }
     m_arrivedAnchorMs = 0;
-    std::snprintf(buf, sizeof(buf), "Travel: walking to the %s he took (%.0f cells)", word, Dist(w.self.grid, goal));
-    SetDetail(ctx, buf);
+    SetDetail(ctx, TrF("travel_detail_walking_his", {{"object", word}, {"cells", Num("%.0f", Dist(w.self.grid, goal))}}));
     return TaskStatus::Running;
 }
 

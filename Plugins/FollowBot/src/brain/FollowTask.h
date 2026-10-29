@@ -35,13 +35,13 @@ public:
         GaveUp            // stuck: retrying after followRetryMs
     };
 
-    const char* Name() const override { return "Follow"; }
+    const char* Name() const override { return Key("task_follow"); }
     TaskStatus Tick(BotContext& ctx) override;   // always Running
     void Abort(BotContext& ctx) override;
     bool AllowsCasts(CastClass) const override { return true; }
 
     Mode CurrentMode() const { return m_mode; }
-    static const char* ModeName(Mode m);
+    static const char* ModeName(Mode m);   // the mode's key (lang/en.json)
     bool HasGoal() const { return m_haveGoal; }
     Vec2 Goal() const { return m_goal; }
     bool Moving() const { return m_moving; }
@@ -80,7 +80,7 @@ public:
         m_kind = kind;
         m_click = click;
     }
-    const char* Name() const override { return "Debug walk"; }
+    const char* Name() const override { return Key("task_debug_walk"); }
     void Start(BotContext& ctx);
     TaskStatus Tick(BotContext& ctx) override;
     void Abort(BotContext& ctx) override;
@@ -91,7 +91,7 @@ public:
         return r != GateReason::Stopped && r != GateReason::Paused && r != GateReason::OverrideHeld &&
                r != GateReason::MaxRuntime;
     }
-    const std::string& Result() const { return m_result; }
+    const LocText& Result() const { return m_result; }
 
 private:
     InteractKind m_kind = InteractKind::Stash;
@@ -99,7 +99,7 @@ private:
     uint32_t     m_targetId = 0;
     WorldClick   m_wc;
     uint64_t     m_startMs = 0;
-    std::string  m_result;
+    LocText      m_result;
 };
 
 }  // namespace fb

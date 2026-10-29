@@ -87,7 +87,7 @@ private:
 };
 
 enum class RecoveryStep : uint8_t { None = 0, RepathBlock, SideStep, Door, Backtrack, Dodge, EscapeProbe, GiveUp };
-const char* RecoveryStepName(RecoveryStep s);
+const char* RecoveryStepName(RecoveryStep s);   // the step's key (lang/en.json)
 
 // What can be tried right now (the executor fills it in).
 struct LadderOptions {

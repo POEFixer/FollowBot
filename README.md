@@ -1,6 +1,6 @@
 # Follow Bot
 
-Current version: 1.0.1
+Current version: 1.0.2
 
 Requires POE2Fixer 365 or newer.
 
@@ -162,13 +162,17 @@ quivers), Accessories (rings, amulets, belts), Other.
   category is off.
 - **Reference currency** - Chaos, Divine or Exalted Orb; every value on the tab is in it.
 - **Compare the value per backpack cell** - divides the value by the item's size first.
-- Prices come from POEFixer's price list (Settings -> Prices). It is in English: with another client language
-  most prices are unknown. Magic and rare equipment has no price (only uniques do).
+- Prices come from POEFixer's price list (Settings -> Prices). POEFixer 371 and newer price an item by what it
+  is (its base item, rarity and unique), so prices work with any client language. An older POEFixer looks the
+  price up by the name your client shows, and its price list is in English: with another client language most
+  prices are unknown there. Magic and rare equipment has no price (only uniques do).
 
 ### Name lists
 One entry per line, any letter case. An entry matches when it appears in the base name, the unique name or the
 game path (e.g. `CurrencyRerollRare`). Put it in double quotes (`"Chaos Orb"`) to require the whole name, so
-`Greater Chaos Orb` is not matched. Names are the ones your client shows.
+`Greater Chaos Orb` is not matched. Names are the game's own item names in your client's language, as the
+label on the ground shows them (a Russian client: `"Сфера хаоса"`); the game path is the same in every
+language.
 
 ### Where and when
 - **Scan radius** (40 cells) - items farther from you are ignored.
@@ -322,8 +326,9 @@ This repository is the plugin folder from the POE2Fixer source tree (`Plugins/Fo
 
 - `POEFixer/plugin_sdk/` - the POE2Fixer Plugin SDK v6 headers (`PluginAbi.h`, `PluginSDK.h`)
 - `POEFixer/imgui/` - the Dear ImGui sources the DLL compiles against
+- `tools/plugin_i18n/gen.py` - the translation tool: after editing `Plugins/FollowBot/lang/en.json` run `python tools/plugin_i18n/gen.py Plugins/FollowBot` (it rewrites the embedded English header); `--gate` checks every language file and the keys the sources use
 
 1. Install Visual Studio 2022 with the "Desktop development with C++" workload (MSVC v143, Windows 10/11 SDK).
 2. Open `FollowBot.sln`, select **Release | x64** and build the solution.
 3. The plugin is written to `x64\Release\Plugins\FollowBot\FollowBot.dll` (Release builds carry no debug information, see `Directory.Build.targets`).
-4. Copy `FollowBot.dll` into `Plugins\FollowBot\` next to the POE2Fixer executable.
+4. Copy `FollowBot.dll` into `Plugins\FollowBot\` next to the POE2Fixer executable, together with `Plugins\FollowBot\lang` from this repository (same folder names).

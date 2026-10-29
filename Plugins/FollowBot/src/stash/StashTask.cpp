@@ -40,7 +40,8 @@ constexpr int      kFailsPerArea = 3;
 constexpr int      kApproachTimeoutMs = 25000;
 constexpr uint32_t kStashMarkerColor = 0xFF40C0FFu;   // ImGui ABGR (amber)
 
-const char* DomainName(bool guild) { return guild ? "guild stash" : "stash"; }
+// The stash kind for the detail and log lines (keys).
+const char* DomainName(bool guild) { return guild ? Key("stash_domain_guild") : Key("stash_domain_own"); }
 
 WorldClickTarget StashClickTarget(const Interactable& it) {
     WorldClickTarget t;
@@ -56,27 +57,27 @@ WorldClickTarget StashClickTarget(const Interactable& it) {
 
 const char* StashTask::TriggerName(Trigger t) {
     switch (t) {
-        case Trigger::None:          return "none";
-        case Trigger::Manual:        return "manual";
-        case Trigger::Opportunistic: return "town / hideout";
-        case Trigger::LeaveMap:      return "leave the map";
+        case Trigger::None:          return Key("stash_trigger_none");
+        case Trigger::Manual:        return Key("stash_trigger_manual");
+        case Trigger::Opportunistic: return Key("stash_trigger_town");
+        case Trigger::LeaveMap:      return Key("stash_trigger_leave_map");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 const char* StashTask::PhaseText() const {
     switch (m_phase) {
         case Phase::Idle:       return "";
-        case Phase::TripLeave:  return "leaving the map";
-        case Phase::Locate:     return "looking for the stash";
-        case Phase::Approach:   return "walking to the stash";
-        case Phase::WaitOpen:   return "waiting for the stash panel";
-        case Phase::Prepare:    return "planning the deposit";
-        case Phase::SelectTab:  return "switching tabs";
-        case Phase::Deposit:    return "depositing";
-        case Phase::Closing:    return "closing the stash";
-        case Phase::TripReturn: return "going back through the portal";
-        case Phase::Stranded:   return "stranded: take the portal back";
+        case Phase::TripLeave:  return Key("stash_phase_trip_leave");
+        case Phase::Locate:     return Key("stash_phase_locate");
+        case Phase::Approach:   return Key("stash_phase_approach");
+        case Phase::WaitOpen:   return Key("stash_phase_wait_open");
+        case Phase::Prepare:    return Key("stash_phase_prepare");
+        case Phase::SelectTab:  return Key("stash_phase_select_tab");
+        case Phase::Deposit:    return Key("stash_phase_deposit");
+        case Phase::Closing:    return Key("stash_phase_closing");
+        case Phase::TripReturn: return Key("stash_phase_trip_return");
+        case Phase::Stranded:   return Key("stash_phase_stranded");
     }
     return "";
 }
@@ -149,10 +150,10 @@ bool StashTask::PanelGone(const World& w) const {
     return inv.valid && !inv.backpackOpen && !inv.stashOpen && !inv.guildOpen;
 }
 
-void StashTask::Warn(BotContext& ctx, const std::string& text) {
+void StashTask::Warn(BotContext& ctx, const LocText& text) {
     if (std::find(m_warned.begin(), m_warned.end(), text) != m_warned.end()) return;
     m_warned.push_back(text);
-    ctx.log.Add(LogCat::Stash, "Stash: %s", text.c_str());
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_warning", {{"text", text}}));
     GlobalStashDiag().Update([&](StashDiagData& d) { StashDiag::AddWarning(d, text); });
 }
 
@@ -236,43 +237,44 @@ bool StashTask::ReadTabs(BotContext& ctx) {
 }
 
 void StashTask::UpdateDetail() {
-    char buf[200];
-    const char* trip = m_trip.PhaseText();
+    const LocText trip = Tr(m_trip.PhaseText());
+    const LocText domain = Tr(DomainName(m_guild));
     switch (m_phase) {
         case Phase::Idle:
             m_detail.clear();
             return;
         case Phase::TripLeave:
-            std::snprintf(buf, sizeof(buf), "Stash: leaving the map - %s", trip);
-            break;
+            m_detail = TrF("stash_detail_trip_leave", {{"step", trip}});
+            return;
         case Phase::Approach:
-            std::snprintf(buf, sizeof(buf), "Stash: %s the %s (try %d)",
-                          m_click.CurrentPhase() == WorldClick::Phase::Approach ? "walking to" : "clicking",
-                          DomainName(m_guild), m_attempt + 1);
-            break;
+            m_detail = TrF(m_click.CurrentPhase() == WorldClick::Phase::Approach ? Key("stash_detail_walking")
+                                                                                 : Key("stash_detail_clicking"),
+                           {{"stash", domain}, {"try", Num("%d", m_attempt + 1)}});
+            return;
         case Phase::WaitOpen:
-            std::snprintf(buf, sizeof(buf), "Stash: waiting for the %s panel (try %d)", DomainName(m_guild), m_attempt);
-            break;
+            m_detail = TrF("stash_detail_wait_open", {{"stash", domain}, {"try", Num("%d", m_attempt)}});
+            return;
         case Phase::SelectTab:
-            std::snprintf(buf, sizeof(buf), "Stash: switching to tab '%s'",
-                          m_group < m_plan.groups.size() ? m_plan.groups[m_group].tab.c_str() : "");
-            break;
+            m_detail = TrF("stash_detail_select_tab",
+                           {{"tab", m_group < m_plan.groups.size() ? m_plan.groups[m_group].tab : std::string()}});
+            return;
         case Phase::Deposit:
-            std::snprintf(buf, sizeof(buf), "Stash: depositing into %s - %d of %d moved (group %d of %d)",
-                          m_groupTabLabel.c_str(), m_queue.Moved(), m_queue.Total(), static_cast<int>(m_group) + 1,
-                          static_cast<int>(m_plan.groups.size()));
-            break;
+            m_detail = TrF("stash_detail_deposit", {{"tab", m_groupTabLabel},
+                                                    {"moved", Num("%d", m_queue.Moved())},
+                                                    {"total", Num("%d", m_queue.Total())},
+                                                    {"group", Num("%d", static_cast<int>(m_group) + 1)},
+                                                    {"groups", Num("%d", static_cast<int>(m_plan.groups.size()))}});
+            return;
         case Phase::TripReturn:
-            std::snprintf(buf, sizeof(buf), "Stash: going back - %s", trip);
-            break;
+            m_detail = TrF("stash_detail_trip_return", {{"step", trip}});
+            return;
         case Phase::Stranded:
-            std::snprintf(buf, sizeof(buf), "Stranded: take the portal back (%s)", m_trip.FailReason().c_str());
-            break;
+            m_detail = TrF("stash_detail_stranded", {{"why", m_trip.FailReason()}});
+            return;
         default:
-            std::snprintf(buf, sizeof(buf), "Stash: %s", PhaseText());
-            break;
+            m_detail = TrF("stash_detail_phase", {{"phase", Tr(PhaseText())}});
+            return;
     }
-    m_detail = buf;
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +293,7 @@ bool StashTask::WantsToStart(BotContext& ctx) {
     const bool town = w.gate.isTown || w.gate.isHideout;
     BotMemory::StashTrip& trip = ctx.mem.trip;
     if (trip.active && !town && !w.gate.areaId.empty() && w.gate.areaId == trip.originAreaId) {
-        ctx.log.Add(LogCat::Stash, "Back in %s: the portal trip is over", w.gate.areaId.c_str());
+        ctx.log.Add(LogCat::Stash, TrF("log_stash_back_in", {{"area", w.gate.areaId}}));
         trip = BotMemory::StashTrip{};
     }
     const bool tripPending = trip.active && town && w.gate.areaCounter != trip.originArea;
@@ -299,7 +301,7 @@ bool StashTask::WantsToStart(BotContext& ctx) {
     if (m_failsInArea > 0 && m_failArea != w.gate.areaCounter) m_failsInArea = 0;
     if (ctx.mem.stashBlocked && w.inv.valid && w.inv.usedCells < ctx.mem.stashBlockedUsedCells) {
         ctx.mem.stashBlocked = false;
-        ctx.log.Add(LogCat::Stash, "The backpack has more room now: automatic stash runs resume");
+        ctx.log.Add(LogCat::Stash, Tr("log_stash_room_again"));
     }
 
     const bool manual = ctx.mem.manualStashRequested;
@@ -330,7 +332,7 @@ bool StashTask::WantsToStart(BotContext& ctx) {
     }
     if (manual && d.trigger == StashTrigger::None) {
         ctx.mem.manualStashRequested = false;   // refused: consumed, never left pending
-        ctx.log.Add(LogCat::Stash, "Stash now: %s", d.why);
+        ctx.log.Add(LogCat::Stash, TrF("log_stash_now_refused", {{"why", Tr(d.why)}}));
     }
     if (d.why != m_lastWhy) {
         m_lastWhy = d.why;
@@ -368,8 +370,10 @@ void StashTask::Start(BotContext& ctx) {
     m_lastListingStamp = 0;
     m_tripRun = m_pendingTrip;
     const bool town = w.gate.isTown || w.gate.isHideout;
-    ctx.log.Add(LogCat::Stash, "Stash run (%s) started: %s, %d of %d backpack cells used", TriggerName(m_active),
-                DomainName(m_guild), w.inv.usedCells, kBackpackCells);
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_run_started", {{"trigger", Tr(TriggerName(m_active))},
+                                                             {"stash", Tr(DomainName(m_guild))},
+                                                             {"used", Num("%d", w.inv.usedCells)},
+                                                             {"cells", Num("%d", kBackpackCells)}}));
     const char* trig = TriggerName(m_active);
     GlobalStashDiag().Update([&](StashDiagData& d) {
         d.trigger = trig;
@@ -380,7 +384,7 @@ void StashTask::Start(BotContext& ctx) {
         m_trip.BeginLeave(ctx);
         SetPhase(ctx, Phase::TripLeave);
     } else {
-        if (m_tripRun) ctx.log.Add(LogCat::Stash, "Resuming the portal trip: stash here, then back through the portal");
+        if (m_tripRun) ctx.log.Add(LogCat::Stash, Tr("log_stash_resuming_trip"));
         SetPhase(ctx, Phase::Locate);
     }
 }
@@ -392,7 +396,7 @@ void StashTask::Start(BotContext& ctx) {
 TaskStatus StashTask::Tick(BotContext& ctx) {
     const uint64_t now = ctx.now;
     if (m_phase == Phase::Idle) {
-        m_fail = "the stash run was not started";
+        m_fail = Tr("stash_fail_not_started");
         return TaskStatus::Failed;
     }
     if (m_lastTickMs != 0 && now > m_lastTickMs + kHoldGapMs) {
@@ -406,14 +410,14 @@ TaskStatus StashTask::Tick(BotContext& ctx) {
         if (m_lastListingSeenMs) m_lastListingSeenMs += gap;
         m_cursorPlaced = false;
         if (gap >= 1000)
-            ctx.log.Add(LogCat::Stash, "Stash run resumed after a %.1f s hold", static_cast<double>(gap) / 1000.0);
+            ctx.log.Add(LogCat::Stash, TrF("log_stash_resumed", {{"seconds", Num("%.1f", static_cast<double>(gap) / 1000.0)}}));
     }
     m_lastTickMs = now;
     ctx.req.inventoryFast = true;
 
     const bool tripPhase = m_phase == Phase::TripLeave || m_phase == Phase::TripReturn || m_phase == Phase::Stranded;
     if (!tripPhase && m_phase != Phase::Closing && now - m_runStartMs > kRunWatchdogMs)
-        return FailRun(ctx, "the stash run took too long");
+        return FailRun(ctx, Tr("stash_fail_too_long"));
 
     TaskStatus st = TaskStatus::Running;
     switch (m_phase) {
@@ -424,7 +428,7 @@ TaskStatus StashTask::Tick(BotContext& ctx) {
             if (ts == TripStatus::Arrived) {
                 SetPhase(ctx, Phase::Locate);
             } else if (ts != TripStatus::Running) {
-                m_pendingFail = "portal trip: " + m_trip.FailReason();
+                m_pendingFail = TrF("stash_fail_trip", {{"why", m_trip.FailReason()}});
                 return Finish(ctx, TaskStatus::Failed);
             }
             break;
@@ -448,7 +452,7 @@ TaskStatus StashTask::Tick(BotContext& ctx) {
             TaskMarker mk;
             mk.grid = it->grid;
             mk.color = kStashMarkerColor;
-            mk.label = "stash";
+            mk.label = Key("marker_stash");
             ctx.report.markers.push_back(std::move(mk));
         }
     }
@@ -472,16 +476,18 @@ void StashTask::StartStashClick(BotContext& ctx, const Interactable& stash) {
 
 TaskStatus StashTask::TickLocate(BotContext& ctx) {
     const World& w = ctx.w;
-    if (!w.gate.isTown && !w.gate.isHideout) return FailRun(ctx, "not in a town or hideout");
+    if (!w.gate.isTown && !w.gate.isHideout) return FailRun(ctx, Tr("stash_fail_not_town"));
     const Interactable* st = PickStashObject(w.interactables, m_guild, w.self.grid);
     if (!st) {
         if (ctx.now - m_phaseMs < kLocateTimeoutMs) return TaskStatus::Running;
-        std::string why = std::string("no ") + DomainName(m_guild) + " found in this area";
-        if (!w.gate.hostHasStashObjects) why += " (POEFixer 365 or newer also finds stashes the entity list misses)";
-        return FailRun(ctx, why);
+        return FailRun(ctx, TrF(w.gate.hostHasStashObjects ? Key("stash_fail_none_found") : Key("stash_fail_none_found_old_host"),
+                                {{"stash", Tr(DomainName(m_guild))}}));
     }
-    ctx.log.Add(LogCat::Stash, "Stash: using %s %u at (%.0f, %.0f), %.0f cells away", DomainName(m_guild), st->id,
-                st->grid.x, st->grid.y, Dist(st->grid, w.self.grid));
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_using", {{"stash", Tr(DomainName(m_guild))},
+                                                       {"id", Num("%u", st->id)},
+                                                       {"x", Num("%.0f", st->grid.x)},
+                                                       {"y", Num("%.0f", st->grid.y)},
+                                                       {"cells", Num("%.0f", Dist(st->grid, w.self.grid))}}));
     StartStashClick(ctx, *st);
     return TaskStatus::Running;
 }
@@ -492,7 +498,7 @@ TaskStatus StashTask::TickApproach(BotContext& ctx) {
     const Interactable* it = w.FindInteractable(m_stashId);
     if (!it) {
         it = PickStashObject(w.interactables, m_guild, w.self.grid);
-        if (!it) return FailRun(ctx, std::string("the ") + DomainName(m_guild) + " is no longer known");
+        if (!it) return FailRun(ctx, TrF("stash_fail_unknown", {{"stash", Tr(DomainName(m_guild))}}));
         m_stashId = it->id;
     }
     // Opportunistic runs give way while nothing is open yet: the leader leaving
@@ -505,7 +511,7 @@ TaskStatus StashTask::TickApproach(BotContext& ctx) {
                              (v.kind == VanishKind::BossArena && t.enterBossArenas);
         if (v.active && follows && v.atMs != m_yieldedVanishMs) {
             m_yieldedVanishMs = v.atMs;
-            ctx.log.Add(LogCat::Stash, "Stash run: the leader left (%s) - following first", VanishKindName(v.kind));
+            ctx.log.Add(LogCat::Stash, TrF("log_stash_yield", {{"kind", Tr(VanishKindName(v.kind))}}));
             return Finish(ctx, TaskStatus::Done, false);
         }
     }
@@ -530,9 +536,10 @@ TaskStatus StashTask::TickApproach(BotContext& ctx) {
         return TaskStatus::Running;
     }
     if (m_attempt >= s.openRetries)
-        return FailRun(ctx, std::string("could not reach the ") + DomainName(m_guild) + ": " + m_click.FailReason());
-    ctx.log.Add(LogCat::Stash, "Stash: %s - trying again (%d of %d)", m_click.FailReason().c_str(), m_attempt + 1,
-                s.openRetries);
+        return FailRun(ctx, TrF("stash_fail_unreachable", {{"stash", Tr(DomainName(m_guild))}, {"why", Tr(m_click.FailReason())}}));
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_click_retry", {{"why", Tr(m_click.FailReason())},
+                                                             {"try", Num("%d", m_attempt + 1)},
+                                                             {"max", Num("%d", s.openRetries)}}));
     StartStashClick(ctx, *it);
     return TaskStatus::Running;
 }
@@ -543,27 +550,24 @@ TaskStatus StashTask::TickWaitOpen(BotContext& ctx) {
     if (w.inv.valid && w.inv.stamp > m_clickMs) {
         if (PanelOpen(w)) {
             m_openMs = w.inv.stamp;
-            ctx.log.Add(LogCat::Stash, "Stash: the %s panel is open (inventory %d)", DomainName(m_guild),
-                        w.inv.openStashInventoryId);
+            ctx.log.Add(LogCat::Stash, TrF("log_stash_panel_open", {{"stash", Tr(DomainName(m_guild))},
+                                                                    {"inventory", Num("%d", w.inv.openStashInventoryId)}}));
             SetPhase(ctx, Phase::Prepare);
             return TaskStatus::Running;
         }
         if (w.inv.backpackOpen && !m_guild && w.inv.guildOpen)
-            return FailRun(ctx, "the guild stash opened instead of your own stash");
+            return FailRun(ctx, Tr("stash_fail_guild_opened"));
         if (w.inv.backpackOpen && m_guild && w.inv.stashOpen && !w.inv.guildOpen)
-            return FailRun(ctx, "your own stash opened instead of the guild stash");
+            return FailRun(ctx, Tr("stash_fail_own_opened"));
     }
     if (ctx.now - m_phaseMs < static_cast<uint64_t>(s.openTimeoutMs)) return TaskStatus::Running;
-    if (m_attempt >= s.openRetries) {
-        char buf[120];
-        std::snprintf(buf, sizeof(buf), "the %s panel did not open after %d click%s", DomainName(m_guild), m_attempt,
-                      m_attempt == 1 ? "" : "s");
-        return FailRun(ctx, buf);
-    }
+    if (m_attempt >= s.openRetries)
+        return FailRun(ctx, TrF("stash_fail_not_opened", {{"stash", Tr(DomainName(m_guild))}, {"clicks", Num("%d", m_attempt)}}));
     const Interactable* it = w.FindInteractable(m_stashId);
     if (!it) it = PickStashObject(w.interactables, m_guild, w.self.grid);
-    if (!it) return FailRun(ctx, std::string("the ") + DomainName(m_guild) + " is no longer known");
-    ctx.log.Add(LogCat::Stash, "Stash: the panel did not open - clicking again (%d of %d)", m_attempt + 1, s.openRetries);
+    if (!it) return FailRun(ctx, TrF("stash_fail_unknown", {{"stash", Tr(DomainName(m_guild))}}));
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_not_opened_retry", {{"try", Num("%d", m_attempt + 1)},
+                                                                  {"max", Num("%d", s.openRetries)}}));
     StartStashClick(ctx, *it);
     return TaskStatus::Running;
 }
@@ -574,16 +578,18 @@ TaskStatus StashTask::TickPrepare(BotContext& ctx) {
     const bool ready = inv.valid && inv.stamp >= m_openMs && inv.backpack.valid && inv.backpack.cell > 1.f &&
                        inv.cursorKnown;
     if (!ready) {
-        if (ctx.now - m_phaseMs > kGridWaitMs) return FailRun(ctx, "the backpack grid could not be read");
+        if (ctx.now - m_phaseMs > kGridWaitMs) return FailRun(ctx, Tr("stash_fail_grid_unreadable"));
         return TaskStatus::Running;
     }
-    if (PanelGone(w)) return FailRun(ctx, std::string("the ") + DomainName(m_guild) + " panel closed");
-    if (inv.cursorHasItem) return StopForCursor(ctx, "before stashing");
+    if (PanelGone(w)) return FailRun(ctx, TrF("stash_fail_panel_closed", {{"stash", Tr(DomainName(m_guild))}}));
+    if (inv.cursorHasItem) return StopForCursor(ctx, Key("stash_when_before"));
     m_planItems = inv.items;
     BuildPlan(ctx, m_planItems, m_plan);
     PublishPlan(m_plan, ctx.now);
-    ctx.log.Add(LogCat::Stash, "Stash plan: %d item(s) in %d group(s); %d kept, %d on protected cells",
-                PlanItemCount(m_plan), static_cast<int>(m_plan.groups.size()), m_plan.kept, m_plan.protectedSkipped);
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_plan", {{"items", Num("%d", PlanItemCount(m_plan))},
+                                                      {"groups", Num("%d", static_cast<int>(m_plan.groups.size()))},
+                                                      {"kept", Num("%d", m_plan.kept)},
+                                                      {"protected", Num("%d", m_plan.protectedSkipped)}}));
     m_group = 0;
     if (m_plan.groups.empty()) {
         SetPhase(ctx, Phase::Closing);
@@ -593,18 +599,15 @@ TaskStatus StashTask::TickPrepare(BotContext& ctx) {
     return TaskStatus::Running;
 }
 
-void StashTask::FallbackToOpenTab(BotContext& ctx, const char* why) {
+void StashTask::FallbackToOpenTab(BotContext& ctx, const LocText& why) {
     const DepositGroup& g = m_plan.groups[m_group];
-    char buf[256];
     if (ctx.p.stash.missingTabUsesOpenTab) {
-        std::snprintf(buf, sizeof(buf), "%s: its items go into the open tab", why);
-        Warn(ctx, buf);
-        m_groupTabLabel = "the open tab";
+        Warn(ctx, TrF("stash_warn_open_tab", {{"why", why}}));
+        m_groupTabLabel = Tr("stash_open_tab");
         BeginGroup(ctx);
         return;
     }
-    std::snprintf(buf, sizeof(buf), "%s: its %d item(s) stay in the backpack", why, static_cast<int>(g.items.size()));
-    Warn(ctx, buf);
+    Warn(ctx, TrF("stash_warn_items_stay", {{"why", why}, {"items", Num("%d", static_cast<int>(g.items.size()))}}));
     m_runLeftItems = true;
     m_skipped += static_cast<int>(g.items.size());
     ++m_group;
@@ -620,32 +623,30 @@ TaskStatus StashTask::TickSelectTab(BotContext& ctx) {
         return TaskStatus::Running;
     }
     if (w.inv.stamp > m_openMs && PanelGone(w))
-        return FailRun(ctx, std::string("the ") + DomainName(m_guild) + " panel closed");
+        return FailRun(ctx, TrF("stash_fail_panel_closed", {{"stash", Tr(DomainName(m_guild))}}));
     const DepositGroup& g = m_plan.groups[m_group];
-    char why[200];
     if (Trim(g.tab).empty()) {
-        m_groupTabLabel = "the open tab";
+        m_groupTabLabel = Tr("stash_open_tab");
         BeginGroup(ctx);
         return TaskStatus::Running;
     }
     if (!w.gate.hostHasStashTabs) {
-        FallbackToOpenTab(ctx, "tab routing needs POEFixer 365 or newer");
+        FallbackToOpenTab(ctx, Tr("stash_why_tabs_old_host"));
         return TaskStatus::Running;
     }
     switch (m_tabStep) {
         case 0: {   // decide
             const bool ok = ReadTabs(ctx);
             if (!ok || m_tabsStatus < 0) {
-                std::snprintf(why, sizeof(why), "the %s tabs could not be read (status %d)", DomainName(m_guild),
-                              m_tabsStatus);
-                FallbackToOpenTab(ctx, why);
+                FallbackToOpenTab(ctx, TrF("stash_why_tabs_unreadable", {{"stash", Tr(DomainName(m_guild))},
+                                                                          {"status", Num("%d", m_tabsStatus)}}));
                 return TaskStatus::Running;
             }
             const TabAction a = DecideTab(m_tabs, m_toggle.Clickable(), g.tab, m_tabIndex);
             switch (a) {
                 case TabAction::UseOpen:
                 case TabAction::AlreadyActive:
-                    m_groupTabLabel = "'" + g.tab + "'";
+                    m_groupTabLabel = TrF("stash_tab_named", {{"tab", g.tab}});
                     BeginGroup(ctx);
                     return TaskStatus::Running;
                 case TabAction::Click:
@@ -658,12 +659,10 @@ TaskStatus StashTask::TickSelectTab(BotContext& ctx) {
                     return TaskStatus::Running;
                 }
                 case TabAction::NotFound:
-                    std::snprintf(why, sizeof(why), "no tab named '%s'", g.tab.c_str());
-                    FallbackToOpenTab(ctx, why);
+                    FallbackToOpenTab(ctx, TrF("stash_why_tab_not_found", {{"tab", g.tab}}));
                     return TaskStatus::Running;
                 case TabAction::NotVisible:
-                    std::snprintf(why, sizeof(why), "tab '%s' is not visible and its list cannot be opened", g.tab.c_str());
-                    FallbackToOpenTab(ctx, why);
+                    FallbackToOpenTab(ctx, TrF("stash_why_tab_not_visible", {{"tab", g.tab}}));
                     return TaskStatus::Running;
             }
             return TaskStatus::Running;
@@ -677,8 +676,7 @@ TaskStatus StashTask::TickSelectTab(BotContext& ctx) {
             if (r != ActResult::Ok) {
                 // Aborted (input released) or refused: decide again, a bounded number of times.
                 if (++m_tabTries >= kTabTries) {
-                    std::snprintf(why, sizeof(why), "could not click tab '%s' (%s)", g.tab.c_str(), ActResultName(r));
-                    FallbackToOpenTab(ctx, why);
+                    FallbackToOpenTab(ctx, TrF("stash_why_tab_click_failed", {{"tab", g.tab}, {"why", Tr(ActResultName(r))}}));
                     return TaskStatus::Running;
                 }
                 m_tabStep = 0;
@@ -694,24 +692,22 @@ TaskStatus StashTask::TickSelectTab(BotContext& ctx) {
             const SwitchCheck c = CheckTabSwitched(m_tabs, g.tab, m_openIdBefore, w.inv.openStashInventoryId, m_guild);
             if (c == SwitchCheck::NotYet) {
                 if (++m_tabTries >= kTabTries) {
-                    std::snprintf(why, sizeof(why), "could not switch to tab '%s'", g.tab.c_str());
-                    FallbackToOpenTab(ctx, why);
+                    FallbackToOpenTab(ctx, TrF("stash_why_tab_not_switched", {{"tab", g.tab}}));
                     return TaskStatus::Running;
                 }
                 m_tabStep = 0;
                 return TaskStatus::Running;
             }
-            if (c == SwitchCheck::Unknown) Warn(ctx, "the selected tab cannot be verified here: assuming the click switched it");
-            ctx.log.Add(LogCat::Stash, "Stash: switched to tab '%s'", g.tab.c_str());
-            m_groupTabLabel = "'" + g.tab + "'";
+            if (c == SwitchCheck::Unknown) Warn(ctx, Tr("stash_warn_tab_unverified"));
+            ctx.log.Add(LogCat::Stash, TrF("log_stash_switched", {{"tab", g.tab}}));
+            m_groupTabLabel = TrF("stash_tab_named", {{"tab", g.tab}});
             BeginGroup(ctx);
             return TaskStatus::Running;
         }
         case 4: {   // the list toggle was clicked: decide again on a fresh read
             if (ctx.now - m_tabClickMs < static_cast<uint64_t>(ctx.p.stash.tabSwitchWaitMs)) return TaskStatus::Running;
             if (++m_tabTries >= kTabTries) {
-                std::snprintf(why, sizeof(why), "the tab list did not open for tab '%s'", g.tab.c_str());
-                FallbackToOpenTab(ctx, why);
+                FallbackToOpenTab(ctx, TrF("stash_why_tab_list_closed", {{"tab", g.tab}}));
                 return TaskStatus::Running;
             }
             m_tabStep = 0;
@@ -742,7 +738,7 @@ void StashTask::BeginGroup(BotContext& ctx) {
     m_ctrlMs = 0;
     m_tabStep = 0;
     m_tabTries = 0;
-    ctx.log.Add(LogCat::Stash, "Stash: depositing %d item(s) into %s", m_queue.Total(), m_groupTabLabel.c_str());
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_depositing", {{"items", Num("%d", m_queue.Total())}, {"tab", m_groupTabLabel}}));
     SetPhase(ctx, Phase::Deposit);
 }
 
@@ -753,12 +749,10 @@ void StashTask::EndGroup(BotContext& ctx, bool tabFull) {
     const int moved = m_queue.Moved(), skipped = m_queue.Skipped();
     m_moved += moved;
     m_skipped += skipped;
-    ctx.log.Add(LogCat::Stash, "Stash: %s - %d moved, %d skipped%s", m_groupTabLabel.c_str(), moved, skipped,
-                tabFull ? " (the tab looks full)" : "");
+    ctx.log.Add(LogCat::Stash, TrF(tabFull ? Key("log_stash_group_done_full") : Key("log_stash_group_done"),
+                                   {{"tab", m_groupTabLabel}, {"moved", Num("%d", moved)}, {"skipped", Num("%d", skipped)}}));
     if (tabFull) {
-        char buf[200];
-        std::snprintf(buf, sizeof(buf), "%s looks full: %d item(s) stayed in the backpack", m_groupTabLabel.c_str(), skipped);
-        Warn(ctx, buf);
+        Warn(ctx, TrF("stash_warn_tab_full", {{"tab", m_groupTabLabel}, {"items", Num("%d", skipped)}}));
         m_runLeftItems = true;
     }
     const int tm = m_moved, ts = m_skipped;
@@ -779,16 +773,16 @@ TaskStatus StashTask::TickDeposit(BotContext& ctx) {
         m_lastListingSeenMs = ctx.now;
         if (PanelGone(w)) {
             ReleaseCtrl(ctx);
-            return FailRun(ctx, std::string("the ") + DomainName(m_guild) + " panel closed during the deposit");
+            return FailRun(ctx, TrF("stash_fail_panel_closed_deposit", {{"stash", Tr(DomainName(m_guild))}}));
         }
-        if (inv.cursorKnown && inv.cursorHasItem) return StopForCursor(ctx, "during the deposit");
+        if (inv.cursorKnown && inv.cursorHasItem) return StopForCursor(ctx, Key("stash_when_during"));
         m_present.clear();
         for (const auto& it : inv.items) m_present.push_back(it.address);
         m_queue.OnListing(m_present, inv.stamp);
     }
     if (ctx.now - m_lastListingSeenMs > kListingStallMs) {
         ReleaseCtrl(ctx);
-        return FailRun(ctx, "the backpack listing stopped updating during the deposit");
+        return FailRun(ctx, Tr("stash_fail_listing_stalled"));
     }
     const DepositQueue::State qs = m_queue.Update(ctx.now);
     if (qs != DepositQueue::State::Running) {
@@ -816,7 +810,7 @@ TaskStatus StashTask::TickDeposit(BotContext& ctx) {
         at += ctx.act.Random().CenterBiased(spread);
         if (w.gate.screenW > 0 && (at.x < 0.f || at.y < 0.f || at.x >= static_cast<float>(w.gate.screenW) ||
                                    at.y >= static_cast<float>(w.gate.screenH)))
-            return FailRun(ctx, "the backpack grid lies outside the game window");
+            return FailRun(ctx, Tr("stash_fail_grid_outside"));
         if (ctx.act.MoveCursor(at) != ActResult::Ok) return TaskStatus::Running;
         m_cursorPlaced = true;
         m_cursorItem = item;
@@ -843,9 +837,9 @@ TaskStatus StashTask::TickClosing(BotContext& ctx) {
     if (m_cursorCheckPending) {
         if (!(inv.valid && inv.cursorKnown && inv.stamp > m_lastDepositClickMs)) {
             if (ctx.now - m_phaseMs < kCloseVerifyMs) return TaskStatus::Running;
-            Warn(ctx, "the cursor could not be checked after the deposit");
+            Warn(ctx, Tr("stash_warn_cursor_unchecked"));
         } else if (inv.cursorHasItem) {
-            return StopForCursor(ctx, "after stashing");
+            return StopForCursor(ctx, Key("stash_when_after"));
         }
         m_cursorCheckPending = false;
     }
@@ -853,18 +847,18 @@ TaskStatus StashTask::TickClosing(BotContext& ctx) {
     if (m_escMs != 0 && !(inv.valid && inv.stamp > m_escMs)) {
         if (ctx.now - m_escMs < kCloseVerifyMs) return TaskStatus::Running;
         if (m_escTries >= kCloseTries) {
-            Warn(ctx, "could not verify that the stash panel closed");
+            Warn(ctx, Tr("stash_warn_close_unverified"));
             return AfterPanelClosed(ctx);
         }
         // No listing after the Esc: judge by the latest one.
     }
     if (!inv.anyPanelOpen) {
-        ctx.log.Add(LogCat::Stash, "Stash: the panel is closed");
+        ctx.log.Add(LogCat::Stash, Tr("log_stash_panel_closed"));
         return AfterPanelClosed(ctx);
     }
     if (m_escTries >= kCloseTries) {
-        if (m_pendingFail.empty()) m_pendingFail = "could not close the stash panel";
-        ctx.log.Add(LogCat::Stash, "Stash: the panel stayed open after %d Esc presses", m_escTries);
+        if (m_pendingFail.empty()) m_pendingFail = Tr("stash_fail_not_closed");
+        ctx.log.Add(LogCat::Stash, TrF("log_stash_panel_stayed_open", {{"presses", Num("%d", m_escTries)}}));
         return Finish(ctx, TaskStatus::Failed);
     }
     const ActResult r = ctx.act.TapKey(VK_ESCAPE, 30);
@@ -878,7 +872,7 @@ TaskStatus StashTask::TickClosing(BotContext& ctx) {
         for (int waited = 0; waited < kEscMenuCheckMs; waited += 25) {
             if (!ctx.act.SleepCancellable(25)) break;
             if (ctx.sdk->Game.GetState() == PluginSDK::GameState::Escape) {
-                ctx.log.Add(LogCat::Stash, "Stash: Esc opened the game menu - closing it");
+                ctx.log.Add(LogCat::Stash, Tr("log_stash_esc_menu"));
                 ctx.act.TapKey(VK_ESCAPE, 30);
                 break;
             }
@@ -905,7 +899,7 @@ TaskStatus StashTask::TickTripReturn(BotContext& ctx) {
     if (ts == TripStatus::Arrived) return Finish(ctx, m_pendingFail.empty() ? TaskStatus::Done : TaskStatus::Failed);
     m_strandedMs = ctx.now;
     m_strandedArea = ctx.w.gate.areaCounter;
-    ctx.log.Add(LogCat::Stash, "Stranded: take the portal back (%s)", m_trip.FailReason().c_str());
+    ctx.log.Add(LogCat::Stash, TrF("stash_detail_stranded", {{"why", m_trip.FailReason()}}));
     SetPhase(ctx, Phase::Stranded);
     return TaskStatus::Running;
 }
@@ -914,18 +908,19 @@ TaskStatus StashTask::TickStranded(BotContext& ctx) {
     const World& w = ctx.w;
     ctx.mover.Stop(ctx.act);
     if (w.gate.areaCounter != m_strandedArea) {
-        ctx.log.Add(LogCat::Stash, "Left the town / hideout: the portal trip is over");
+        ctx.log.Add(LogCat::Stash, Tr("log_stash_left_town"));
         ctx.mem.trip = BotMemory::StashTrip{};
         return Finish(ctx, m_pendingFail.empty() ? TaskStatus::Done : TaskStatus::Failed);
     }
     if (w.leader.visible) {
-        ctx.log.Add(LogCat::Stash, "The leader is here: the portal trip is over");
+        ctx.log.Add(LogCat::Stash, Tr("log_stash_leader_here"));
         ctx.mem.trip = BotMemory::StashTrip{};
         return Finish(ctx, m_pendingFail.empty() ? TaskStatus::Done : TaskStatus::Failed);
     }
     if (m_strandRetries < kStrandRetries && ctx.now - m_strandedMs >= kStrandRetryMs) {
         ++m_strandRetries;
-        ctx.log.Add(LogCat::Stash, "Stranded: looking for the portal back again (%d of %d)", m_strandRetries, kStrandRetries);
+        ctx.log.Add(LogCat::Stash, TrF("log_stash_strand_retry", {{"try", Num("%d", m_strandRetries)},
+                                                                  {"max", Num("%d", kStrandRetries)}}));
         m_trip.BeginReturn(ctx);
         SetPhase(ctx, Phase::TripReturn);
     }
@@ -936,12 +931,12 @@ TaskStatus StashTask::TickStranded(BotContext& ctx) {
 // Endings
 // ---------------------------------------------------------------------------
 
-TaskStatus StashTask::FailRun(BotContext& ctx, const std::string& why) {
+TaskStatus StashTask::FailRun(BotContext& ctx, const LocText& why) {
     if (m_pendingFail.empty()) m_pendingFail = why;
     ReleaseCtrl(ctx);
     m_click.Abort(ctx);
     m_cursorPlaced = false;
-    ctx.log.Add(LogCat::Stash, "Stash run failed: %s", why.c_str());
+    ctx.log.Add(LogCat::Stash, TrF("log_stash_run_failed", {{"why", why}}));
     if (m_ownsPanel && m_phase != Phase::Closing) {
         SetPhase(ctx, Phase::Closing);
         return TaskStatus::Running;
@@ -960,8 +955,7 @@ TaskStatus StashTask::StopForCursor(BotContext& ctx, const char* when) {
     ReleaseCtrl(ctx);
     m_click.Abort(ctx);
     m_cursorPlaced = false;
-    m_pendingFail = std::string("an item is on the cursor ") + when +
-                    ": put it down - the bot stopped so that no click drops it";
+    m_pendingFail = TrF("stash_fail_cursor_item", {{"when", Tr(when)}});
     m_stopAfter = true;
     return Finish(ctx, TaskStatus::Failed);   // the panel stays as it is
 }
@@ -977,7 +971,7 @@ TaskStatus StashTask::Finish(BotContext& ctx, TaskStatus st, bool countAsRun) {
     m_ownsPanel = false;
     ctx.act.SetUiTaskActive(false);
     if (!m_pendingFail.empty()) st = TaskStatus::Failed;
-    m_fail = st == TaskStatus::Failed ? (m_pendingFail.empty() ? std::string("failed") : m_pendingFail) : std::string();
+    m_fail = st == TaskStatus::Failed ? (m_pendingFail.empty() ? Tr("task_status_failed") : m_pendingFail) : LocText();
     if (countAsRun) {
         if (st == TaskStatus::Done) {
             ctx.mem.inventoryFull = false;
@@ -995,32 +989,30 @@ TaskStatus StashTask::Finish(BotContext& ctx, TaskStatus st, bool countAsRun) {
         // Items left behind pause the automatic runs; a manual run that moved
         // items and left nothing behind lifts the pause.
         if (m_runLeftItems) {
-            if (!ctx.mem.stashBlocked)
-                ctx.log.Add(LogCat::Stash, "Automatic stash runs paused: items stayed in the backpack (the tab is full "
-                                           "or missing) - make room, then press Stash now");
+            if (!ctx.mem.stashBlocked) ctx.log.Add(LogCat::Stash, Tr("log_stash_paused"));
             ctx.mem.stashBlocked = true;
             ctx.mem.stashBlockedUsedCells = w.inv.valid ? w.inv.usedCells : kBackpackCells;
         } else if (ctx.mem.stashBlocked && m_active == Trigger::Manual && st == TaskStatus::Done && m_moved > 0) {
             ctx.mem.stashBlocked = false;
-            ctx.log.Add(LogCat::Stash, "Stash now moved everything it planned: automatic stash runs resume");
+            ctx.log.Add(LogCat::Stash, Tr("log_stash_resumed_runs"));
         }
     }
     m_trigStamp = 0;   // re-plan the trigger on the next listing
-    if (m_stopAfter) ctx.mem.RequestStop("Stash: " + m_fail);
+    if (m_stopAfter) ctx.mem.RequestStop(TrF("error_stash", {{"why", m_fail}}));
 
-    char result[200];
-    if (!countAsRun)
-        std::snprintf(result, sizeof(result), "%s run gave way to the leader", TriggerName(m_active));
-    else
-        std::snprintf(result, sizeof(result), "%s run %s: %d moved, %d skipped", TriggerName(m_active),
-                      st == TaskStatus::Done ? "done" : "failed", m_moved, m_skipped);
-    ctx.log.Add(LogCat::Stash, "Stash %s%s%s", result, m_fail.empty() ? "" : " - ", m_fail.c_str());
-    const std::string res = result, fail = m_fail;
+    const LocText trigger = Tr(TriggerName(m_active));
+    const LocText result =
+        !countAsRun ? TrF("stash_result_gave_way", {{"trigger", trigger}})
+                    : TrF(st == TaskStatus::Done ? Key("stash_result_done") : Key("stash_result_failed"),
+                          {{"trigger", trigger}, {"moved", Num("%d", m_moved)}, {"skipped", Num("%d", m_skipped)}});
+    if (m_fail.empty()) ctx.log.Add(LogCat::Stash, TrF("log_stash_result", {{"result", result}}));
+    else ctx.log.Add(LogCat::Stash, TrF("log_stash_result_why", {{"result", result}, {"why", m_fail}}));
+    const LocText fail = m_fail;
     const uint64_t now = ctx.now;
     GlobalStashDiag().Update([&](StashDiagData& d) {
-        d.trigger.clear();
-        d.phase.clear();
-        d.lastResult = res;
+        d.trigger = "";
+        d.phase = "";
+        d.lastResult = result;
         if (!fail.empty()) {
             d.lastFailure = fail;
             d.lastFailureMs = now;
@@ -1034,7 +1026,7 @@ TaskStatus StashTask::Finish(BotContext& ctx, TaskStatus st, bool countAsRun) {
 }
 
 void StashTask::Abort(BotContext& ctx) {
-    if (m_phase != Phase::Idle) ctx.log.Add(LogCat::Stash, "Stash run interrupted while %s", PhaseText());
+    if (m_phase != Phase::Idle) ctx.log.Add(LogCat::Stash, TrF("log_stash_interrupted", {{"phase", Tr(PhaseText())}}));
     ReleaseCtrl(ctx);
     m_click.Abort(ctx);
     m_trip.Abort(ctx);
@@ -1045,8 +1037,8 @@ void StashTask::Abort(BotContext& ctx) {
     m_phase = Phase::Idle;
     m_detail.clear();
     GlobalStashDiag().Update([&](StashDiagData& d) {
-        d.trigger.clear();
-        d.phase.clear();
+        d.trigger = "";
+        d.phase = "";
     });
 }
 

@@ -36,7 +36,7 @@ struct LootItemInfo {
 
 struct LootDecision {
     bool        pick = false;
-    const char* reason = "";    // short English reason (Diagnostics); always a static string
+    const char* reason = "";    // a key (lang/en.json) for Diagnostics; always a static string
 };
 
 LootDecision EvaluateLoot(const LootItemInfo& item, const LootSettings& s);

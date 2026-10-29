@@ -28,6 +28,9 @@
     <Filter Include="src\config">
       <UniqueIdentifier>{606427F2-2FF3-4204-BD09-1D606E480EB1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\core">
+      <UniqueIdentifier>{6B2E9C41-3D7A-4F58-A1C6-5E9D0B7F2A84}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\death">
       <UniqueIdentifier>{BD8B0CF6-5E29-4033-8876-9C292D8E9ED4}</UniqueIdentifier>
     </Filter>
@@ -233,6 +236,9 @@
     <ClInclude Include="src\brain\Task.h">
       <Filter>src\brain</Filter>
     </ClInclude>
+    <ClInclude Include="src\combat\RuleLabels.h">
+      <Filter>src\combat</Filter>
+    </ClInclude>
     <ClInclude Include="src\combat\SkillEngine.h">
       <Filter>src\combat</Filter>
     </ClInclude>
@@ -241,6 +247,12 @@
     </ClInclude>
     <ClInclude Include="src\combat\Targeting.h">
       <Filter>src\combat</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\LocText.h">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lang_en.generated.h">
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\common\BotLog.h">
       <Filter>src\common</Filter>

@@ -39,7 +39,11 @@ bool IsAutoSelected(const Settings& s, std::string_view character, int idx) {
 std::string UniqueProfileName(const Settings& s, std::string_view base) {
     std::string b = Trim(base);
     if (b.empty()) b = "Profile";
-    if (b.size() > 40) b.resize(40);
+    // At most 40 bytes, cut between characters (a Cyrillic or Thai name never ends in half a one).
+    if (b.size() > 40) {
+        TruncateUtf8(b, 40);
+        b = Trim(b);
+    }
     if (FindProfile(s, b) < 0) return b;
     // "Witch 2" taken -> "Witch 3", not "Witch 2 2": number from the bare name.
     const size_t sp = b.find_last_of(' ');
@@ -107,6 +111,23 @@ void EnsureProfiles(Settings& s) {
         seen.insert(name);
     }
     if (FindProfile(s, s.activeProfile) < 0) s.activeProfile = s.profiles.front().name;
+}
+
+PluginProfileName ParsePluginProfileName(std::string_view name) {
+    PluginProfileName out;
+    std::string_view base = name;
+    int number = 0;
+    const size_t sp = name.find_last_of(' ');
+    if (sp != std::string_view::npos && sp + 1 < name.size() && name.size() - sp - 1 <= 4 && name[sp + 1] != '0' &&
+        name.find_first_not_of("0123456789", sp + 1) == std::string_view::npos) {
+        base = name.substr(0, sp);
+        for (size_t i = sp + 1; i < name.size(); ++i) number = number * 10 + (name[i] - '0');
+    }
+    if (base == "Default") out.base = PluginProfileBase::Default;
+    else if (base == "Profile") out.base = PluginProfileBase::Profile;
+    else return out;
+    out.number = number;
+    return out;
 }
 
 }  // namespace fb

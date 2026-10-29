@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2
+
+- Follows the program language (ten languages).
+- The decision log's Copy button copies the English text, as the log file holds it, so a bug report reads the same in every language.
+- Works in every game language: with POEFixer 371 or newer, ground loot is priced by what the item is, not by the name your client shows, so the value rules work with any client language (and two items that share one translated name get their own prices).
+- The decision log's filter also finds a line by its English words, as the log file and the Copy button show it.
+- Rules made with Add or Duplicate and profiles made with New or Duplicate keep their names in the program language: switching the language no longer leaves them in the language they were made in.
+- The "Find UI by control name" match list fits its longest translated choice.
+- Texts that name a button or hotkey use its label exactly (Russian, Japanese, Korean and Spanish); Traditional Chinese uses the game's word for a portal (時空之門), Japanese the game's word for a town portal (タウンポータル).
+- UI dumps and "Find UI" results cut a long game text between characters, never inside one.
+- An item POEFixer could not price by what it is yet (its item data still downloading) is priced again a second later, instead of keeping the price of its name for the rest of the area.
+- A renamed profile with a long Cyrillic or Thai name is cut between letters, never inside one.
+
 ## 1.0.1
 
 - Works with the separate menu window (POEFixer 366): the host hands the plugin the right drawing context for its settings tab and for its overlay.

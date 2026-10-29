@@ -8,6 +8,7 @@
 #pragma once
 
 #include "../config/Settings.h"
+#include "../core/LocText.h"
 #include "../world/World.h"
 #include "Gates.h"
 
@@ -31,13 +32,14 @@ class StuckRecovery;
 
 enum class TaskStatus : uint8_t { Running = 0, Done, Failed };
 
+// The status's key (lang/en.json).
 inline const char* TaskStatusName(TaskStatus s) {
     switch (s) {
-        case TaskStatus::Running: return "running";
-        case TaskStatus::Done:    return "done";
-        case TaskStatus::Failed:  return "failed";
+        case TaskStatus::Running: return Key("task_status_running");
+        case TaskStatus::Done:    return Key("task_status_done");
+        case TaskStatus::Failed:  return Key("task_status_failed");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 // What a skill / flask cast does to the cursor and the character: a task says
@@ -94,16 +96,16 @@ struct BotMemory {
     uint64_t leaderIdleSinceMs = 0;   // the leader has not moved since (0 = moving / unknown)
     // Requests from tasks to the plugin.
     bool        stopRequested = false;   // stop the bot (death limit, emergency exit, ...)
-    std::string stopReason;
-    std::string lastError;
-    std::string currentRule;             // the last skill rule that fired
+    LocText     stopReason;
+    LocText     lastError;
+    std::string currentRule;             // the last skill rule that fired (its user label)
 
     bool IsBlacklisted(uint32_t id, uint64_t now) const {
         const auto it = lootBlacklist.find(id);
         return it != lootBlacklist.end() && now < it->second;
     }
     void Blacklist(uint32_t id, uint64_t until) { lootBlacklist[id] = until; }
-    void RequestStop(std::string why) {
+    void RequestStop(LocText why) {
         stopRequested = true;
         stopReason = std::move(why);
     }
@@ -113,12 +115,12 @@ struct BotMemory {
 struct TaskMarker {
     Vec2        grid;
     uint32_t    color = 0xFF00FFFFu;   // ImGui ABGR
-    std::string label;
+    const char* label = "";            // a key (lang/en.json), "" = none
 };
 
 // What the running task reports this tick (status window, overlay).
 struct TaskReport {
-    std::string detail;               // one line: what it does / why it waits
+    LocText     detail;               // one line: what it does / why it waits
     bool        hasTarget = false;
     Vec2        target;
     std::vector<TaskMarker> markers;
@@ -158,6 +160,7 @@ struct BotContext {
 class Task {
 public:
     virtual ~Task() = default;
+    // The task's key (lang/en.json): logs and the UI translate it.
     virtual const char* Name() const = 0;
     virtual TaskStatus Tick(BotContext& ctx) = 0;
     // Stop now: release input, forget transient state. Called on preemption,

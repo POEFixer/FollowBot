@@ -92,7 +92,7 @@ void PickupTask::UpdateFullFlag(BotContext& ctx) {
     // Set by us: cleared once the backpack has more room than when it was set.
     if (m_fullAtFreeCells >= 0 && ctx.w.inv.valid && m_scanner.FreeCells() > m_fullAtFreeCells) {
         ctx.mem.inventoryFull = false;
-        ctx.log.Add(LogCat::Loot, "Backpack has room again (%d free cells)", m_scanner.FreeCells());
+        ctx.log.Add(LogCat::Loot, TrF("log_loot_room_again", {{"cells", Num("%d", m_scanner.FreeCells())}}));
         m_fullAtFreeCells = -1;
     }
 }
@@ -100,32 +100,33 @@ void PickupTask::UpdateFullFlag(BotContext& ctx) {
 const char* PickupTask::BlockReason(const BotContext& ctx) const {
     const World& w = ctx.w;
     const LootSettings& s = ctx.p.loot;
-    if (!s.enabled && !s.alwaysQuestItems) return "loot pickup is off";
-    if (!w.self.valid || w.self.dead) return "no character";
-    if ((w.gate.isTown || w.gate.isHideout) && !s.lootInTownHideout) return "not in town and hideout (setting)";
-    if (ctx.now < m_cooldownUntilMs) return "following first for a moment";
+    if (!s.enabled && !s.alwaysQuestItems) return Key("loot_why_loot_off");
+    if (!w.self.valid || w.self.dead) return Key("loot_block_no_character");
+    if ((w.gate.isTown || w.gate.isHideout) && !s.lootInTownHideout) return Key("loot_block_town");
+    if (ctx.now < m_cooldownUntilMs) return Key("loot_block_following");
     if (w.leader.configured) {
-        if (!w.leader.visible) return "leader not in sight";
-        if (Dist(w.self.grid, w.leader.info.grid) > s.maxLeaderDistance) return "leader too far";
+        if (!w.leader.visible) return Key("loot_block_leader_not_in_sight");
+        if (Dist(w.self.grid, w.leader.info.grid) > s.maxLeaderDistance) return Key("loot_block_leader_far");
     }
-    if (EnemiesNear(w, s, w.self.grid)) return "enemies nearby";
+    if (EnemiesNear(w, s, w.self.grid)) return Key("loot_block_enemies");
     return nullptr;
 }
 
 const char* PickupTask::PreemptReason(const BotContext& ctx) const {
     const World& w = ctx.w;
     const LootSettings& s = ctx.p.loot;
-    if (!s.enabled && !s.alwaysQuestItems) return "loot pickup was turned off";
-    if (!w.self.valid || w.self.dead) return "no character";
-    if ((w.gate.isTown || w.gate.isHideout) && !s.lootInTownHideout) return "in town or hideout";
+    if (!s.enabled && !s.alwaysQuestItems) return Key("loot_preempt_turned_off");
+    if (!w.self.valid || w.self.dead) return Key("loot_block_no_character");
+    if ((w.gate.isTown || w.gate.isHideout) && !s.lootInTownHideout) return Key("loot_preempt_town");
     if (w.leader.configured) {
         if (!w.leader.visible) {
-            if (w.leader.lastSeenMs == 0 || ctx.now - w.leader.lastSeenMs > kLeaderLostGraceMs) return "the leader left sight";
+            if (w.leader.lastSeenMs == 0 || ctx.now - w.leader.lastSeenMs > kLeaderLostGraceMs)
+                return Key("loot_preempt_leader_left");
         } else if (Dist(w.self.grid, w.leader.info.grid) > s.maxLeaderDistance + s.preemptLeaderExtra) {
-            return "the leader is too far";
+            return Key("loot_preempt_leader_far");
         }
     }
-    if (EnemiesNear(w, s, w.self.grid)) return "enemies nearby";
+    if (EnemiesNear(w, s, w.self.grid)) return Key("loot_block_enemies");
     return nullptr;
 }
 
@@ -167,7 +168,7 @@ bool PickupTask::WantsToStart(BotContext& ctx) {
     TrackArea(ctx);
     const LootSettings& s = ctx.p.loot;
     if (!s.enabled && !s.alwaysQuestItems) {
-        SetStatus("loot pickup is off");
+        SetStatus(Key("loot_why_loot_off"));
         return false;
     }
     ctx.req.groundItems = true;
@@ -186,15 +187,15 @@ bool PickupTask::WantsToStart(BotContext& ctx) {
     if (noRoom && !ctx.mem.inventoryFull) {
         ctx.mem.inventoryFull = true;
         m_fullAtFreeCells = m_scanner.FreeCells();
-        ctx.log.Add(LogCat::Loot, "Backpack full: a wanted item has no room (%d free cells)", m_fullAtFreeCells);
+        ctx.log.Add(LogCat::Loot, TrF("log_loot_full", {{"cells", Num("%d", m_fullAtFreeCells)}}));
     }
     AddMarkers(ctx, c ? c->item.id : 0);
     if (!c) {
-        SetStatus(noRoom ? "wanted items have no room" : "nothing wanted in range");
+        SetStatus(noRoom ? Key("loot_status_no_room") : Key("loot_status_nothing_in_range"));
         return false;
     }
     m_pendingId = c->item.id;
-    SetStatus("starting");
+    SetStatus(Key("loot_status_starting"));
     return true;
 }
 
@@ -230,16 +231,20 @@ void PickupTask::BeginTarget(BotContext& ctx, const LootCandidate& c) {
     p.approachTimeoutMs = std::clamp(s.maxContinuousMs, 2000, 20000);
     m_click.Start(t, p, ctx.now);
     const auto at = m_attempts.find(m_targetId);
-    ctx.log.Add(LogCat::Loot, "Picking up %s (%s, %.0f cells, attempt %d/%d)", m_targetName.c_str(),
-                ItemCategoryName(c.info.category), c.item.dist, (at != m_attempts.end() ? at->second : 0) + 1,
-                s.maxAttempts);
+    ctx.log.Add(LogCat::Loot, TrF("log_loot_picking", {{"item", m_targetName},
+                                                       {"category", Tr(ItemCategoryName(c.info.category))},
+                                                       {"cells", Num("%.0f", c.item.dist)},
+                                                       {"attempt", Num("%d", (at != m_attempts.end() ? at->second : 0) + 1)},
+                                                       {"max", Num("%d", s.maxAttempts)}}));
 }
 
 void PickupTask::GiveUp(BotContext& ctx, const char* why) {
     const LootSettings& s = ctx.p.loot;
     ctx.mem.Blacklist(m_targetId, ctx.now + static_cast<uint64_t>(s.blacklistMs));
     m_attempts.erase(m_targetId);
-    ctx.log.Add(LogCat::Loot, "Giving up on %s for %d s: %s", m_targetName.c_str(), s.blacklistMs / 1000, why);
+    ctx.log.Add(LogCat::Loot, TrF("log_loot_giving_up", {{"item", m_targetName},
+                                                         {"seconds", Num("%d", s.blacklistMs / 1000)},
+                                                         {"why", Tr(why)}}));
     m_scanner.RequestPass();
 }
 
@@ -251,7 +256,10 @@ void PickupTask::AttemptFailed(BotContext& ctx, const char* why) {
         GiveUp(ctx, why);
         return;
     }
-    ctx.log.Add(LogCat::Loot, "%s: %s (attempt %d/%d)", m_targetName.c_str(), why, n, s.maxAttempts);
+    ctx.log.Add(LogCat::Loot, TrF("log_loot_attempt_failed", {{"item", m_targetName},
+                                                              {"why", Tr(why)},
+                                                              {"attempt", Num("%d", n)},
+                                                              {"max", Num("%d", s.maxAttempts)}}));
 }
 
 TaskStatus PickupTask::Finish(BotContext& ctx, TaskStatus st, const char* why, int cooldownMs) {
@@ -259,10 +267,10 @@ TaskStatus PickupTask::Finish(BotContext& ctx, TaskStatus st, const char* why, i
     m_phase = Phase::Choose;
     m_targetId = 0;
     if (cooldownMs > 0) m_cooldownUntilMs = ctx.now + static_cast<uint64_t>(cooldownMs);
-    if (st == TaskStatus::Failed) m_failReason = why;
+    if (st == TaskStatus::Failed) m_failReason = Tr(why);
     else m_failReason.clear();
-    ctx.log.Add(LogCat::Loot, "Pickup %s: %s (%d picked up)", st == TaskStatus::Failed ? "stopped" : "finished", why,
-                m_pickedRun);
+    ctx.log.Add(LogCat::Loot, TrF(st == TaskStatus::Failed ? Key("log_loot_pickup_stopped") : Key("log_loot_pickup_finished"),
+                                  {{"why", Tr(why)}, {"picked", Num("%d", m_pickedRun)}}));
     SetStatus(why);
     return st;
 }
@@ -279,9 +287,7 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
 
     if (const char* why = PreemptReason(ctx)) return Finish(ctx, TaskStatus::Failed, why, kPreemptCooldownMs);
     if (ctx.now - m_startMs >= static_cast<uint64_t>(s.maxContinuousMs))
-        return Finish(ctx, TaskStatus::Done, "time limit reached, following first", s.yieldCooldownMs);
-
-    char line[200];
+        return Finish(ctx, TaskStatus::Done, Key("loot_status_time_limit"), s.yieldCooldownMs);
     for (int step = 0; step < 2; ++step) {   // Choose may hand over to Click in the same tick
         switch (m_phase) {
             case Phase::Choose: {
@@ -290,12 +296,12 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
                 if (noRoom && !ctx.mem.inventoryFull) {
                     ctx.mem.inventoryFull = true;
                     m_fullAtFreeCells = m_scanner.FreeCells();
-                    ctx.log.Add(LogCat::Loot, "Backpack full: a wanted item has no room (%d free cells)", m_fullAtFreeCells);
+                    ctx.log.Add(LogCat::Loot, TrF("log_loot_full", {{"cells", Num("%d", m_fullAtFreeCells)}}));
                 }
                 if (!c) {
-                    const char* why = m_pickedRun > 0 ? "nothing left to pick up"
-                                      : noRoom        ? "wanted items have no room"
-                                                      : "nothing to pick up";
+                    const char* why = m_pickedRun > 0 ? Key("loot_status_nothing_left")
+                                      : noRoom        ? Key("loot_status_no_room")
+                                                      : Key("loot_status_nothing");
                     return Finish(ctx, TaskStatus::Done, why, 0);
                 }
                 BeginTarget(ctx, *c);
@@ -306,14 +312,13 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
                 const GroundItem* gi = FindItem(w, m_targetId);
                 if (!gi) {
                     // Gone before our click: someone else took it (or it despawned).
-                    ctx.log.Add(LogCat::Loot, "%s is gone before the click", m_targetName.c_str());
+                    ctx.log.Add(LogCat::Loot, TrF("log_loot_gone", {{"item", m_targetName}}));
                     m_click.Abort(ctx);
                     m_phase = Phase::Choose;
                     return TaskStatus::Running;
                 }
                 if (!StillWanted(ctx)) {
-                    ctx.log.Add(LogCat::Loot, "%s is no longer wanted here (rules, room, leader or enemies)",
-                                m_targetName.c_str());
+                    ctx.log.Add(LogCat::Loot, TrF("log_loot_not_wanted", {{"item", m_targetName}}));
                     m_click.Abort(ctx);
                     m_phase = Phase::Choose;
                     return TaskStatus::Running;
@@ -325,27 +330,29 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
                 m_click.UpdateTarget(t);
                 m_targetItem = *gi;
                 const auto at = m_attempts.find(m_targetId);
-                std::snprintf(line, sizeof(line), "Picking up %s (attempt %d/%d)", m_targetName.c_str(),
-                              (at != m_attempts.end() ? at->second : 0) + 1, s.maxAttempts);
-                ctx.report.detail.assign(line);
-                SetStatus(m_click.CurrentPhase() == WorldClick::Phase::Approach ? "walking to an item" : "clicking an item");
+                ctx.report.detail = TrF("detail_loot_picking", {{"item", m_targetName},
+                                                                {"attempt", Num("%d", (at != m_attempts.end() ? at->second : 0) + 1)},
+                                                                {"max", Num("%d", s.maxAttempts)}});
+                SetStatus(m_click.CurrentPhase() == WorldClick::Phase::Approach ? Key("loot_status_walking")
+                                                                                : Key("loot_status_clicking"));
                 const WorldClickStatus st = m_click.Tick(ctx);
                 if (st == WorldClickStatus::Clicked) {
                     m_vanish.Start(ctx.now, Dist(w.self.grid, gi->grid), s.vanishWaitMs, s.vanishWaitMovingMs);
                     m_phase = Phase::WaitVanish;
-                    SetStatus("waiting for the pickup");
+                    SetStatus(Key("loot_status_waiting"));
                     return TaskStatus::Running;
                 }
                 if (st == WorldClickStatus::Failed) {
-                    const std::string& why = m_click.FailReason();
-                    if (why == "no move key set") return Finish(ctx, TaskStatus::Failed, "no move key set (General tab)", 0);
-                    if (why == "object unreachable") GiveUp(ctx, "no path to it");
-                    else if (why == "stuck on the way") GiveUp(ctx, "stuck on the way to it");
+                    const std::string why = m_click.FailReason();
+                    if (why == Key("click_fail_no_move_key"))
+                        return Finish(ctx, TaskStatus::Failed, Key("travel_why_no_move_key"), 0);
+                    if (why == Key("click_fail_unreachable")) GiveUp(ctx, Key("loot_giveup_no_path"));
+                    else if (why == Key("click_fail_stuck")) GiveUp(ctx, Key("loot_giveup_stuck"));
                     else if (why == ActResultName(ActResult::Aborted))
-                        ctx.log.Add(LogCat::Loot, "%s: the click was interrupted (input refused)", m_targetName.c_str());
-                    else if (why == "object not on screen") AttemptFailed(ctx, "its label is not on screen");
-                    else if (why == "approach timed out") AttemptFailed(ctx, "could not reach it in time");
-                    else AttemptFailed(ctx, why.c_str());
+                        ctx.log.Add(LogCat::Loot, TrF("log_loot_interrupted", {{"item", m_targetName}}));
+                    else if (why == Key("click_fail_off_screen")) AttemptFailed(ctx, Key("loot_attempt_off_screen"));
+                    else if (why == Key("click_fail_timeout")) AttemptFailed(ctx, Key("loot_attempt_timeout"));
+                    else AttemptFailed(ctx, m_click.FailReason());
                     m_phase = Phase::Choose;
                 }
                 return TaskStatus::Running;
@@ -356,9 +363,8 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
                 ctx.report.hasTarget = true;
                 ctx.report.target = gi ? gi->grid : m_targetItem.grid;
                 const VanishWatch::Result vr = m_vanish.Update(ctx.now, gi != nullptr, w.items.empty(), dist);
-                std::snprintf(line, sizeof(line), "Picking up %s (%s)", m_targetName.c_str(),
-                              m_vanish.Approaching(ctx.now) ? "walking to it" : "waiting");
-                ctx.report.detail.assign(line);
+                ctx.report.detail = TrF(m_vanish.Approaching(ctx.now) ? Key("detail_loot_walking") : Key("detail_loot_waiting"),
+                                        {{"item", m_targetName}});
                 switch (vr) {
                     case VanishWatch::Result::Vanished: {
                         ++m_pickedRun;
@@ -366,16 +372,17 @@ TaskStatus PickupTask::Tick(BotContext& ctx) {
                         m_attempts.erase(m_targetId);
                         m_scanner.NotePickedUp(m_targetInfo, ctx.now);
                         if (m_targetInfo.priceKnown)
-                            ctx.log.Add(LogCat::Loot, "Picked up %s (%.2f %s)", m_targetName.c_str(), m_targetInfo.value,
-                                        RefCurrencyShort(s.currency));
+                            ctx.log.Add(LogCat::Loot, TrF("log_loot_picked_value", {{"item", m_targetName},
+                                                                                    {"value", Num("%.2f", m_targetInfo.value)},
+                                                                                    {"currency", Tr(RefCurrencyShort(s.currency))}}));
                         else
-                            ctx.log.Add(LogCat::Loot, "Picked up %s", m_targetName.c_str());
+                            ctx.log.Add(LogCat::Loot, TrF("log_loot_picked", {{"item", m_targetName}}));
                         m_phase = Phase::Choose;
-                        SetStatus("picked up an item");
+                        SetStatus(Key("loot_status_picked"));
                         return TaskStatus::Running;
                     }
                     case VanishWatch::Result::TimedOut:
-                        AttemptFailed(ctx, "it did not vanish after the click");
+                        AttemptFailed(ctx, Key("loot_attempt_not_vanished"));
                         m_phase = Phase::Choose;
                         return TaskStatus::Running;
                     case VanishWatch::Result::Pending:
@@ -400,7 +407,7 @@ void PickupTask::Abort(BotContext& ctx) {
     m_phase = Phase::Choose;
     m_targetId = 0;
     m_pendingId = 0;
-    SetStatus("interrupted");
+    SetStatus(Key("loot_status_interrupted"));
 }
 
 bool PickupTask::AllowsCasts(CastClass c) const {
@@ -428,18 +435,18 @@ void PickupTask::AddMarkers(BotContext& ctx, uint32_t chosenId) const {
         m.grid = c.item.grid;
         if (c.item.id == chosenId && chosenId != 0) {
             m.color = kColTarget;
-            m.label = "target";
+            m.label = Key("marker_target");
         } else if (c.blacklisted) {
             m.color = kColSkip;
-            m.label = "skip";
+            m.label = Key("marker_skip");
         } else if (!c.decision.pick) {
             continue;
         } else if (!c.fits) {
             m.color = kColNoRoom;
-            m.label = "no room";
+            m.label = Key("marker_no_room");
         } else {
             m.color = kColWanted;
-            m.label = "loot";
+            m.label = Key("marker_loot");
         }
         ctx.report.markers.push_back(std::move(m));
         ++n;

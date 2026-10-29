@@ -1,6 +1,8 @@
 // PathPlanner.cpp - see PathPlanner.h.
 #include "PathPlanner.h"
 
+#include "../core/LocText.h"
+
 #include <algorithm>
 
 namespace fb {
@@ -20,15 +22,15 @@ const char* ReplanReasonName(ReplanReason r) {
 
 const char* PlanStatusName(PlanStatus s) {
     switch (s) {
-        case PlanStatus::Idle:         return "idle";
-        case PlanStatus::NoGrid:       return "no grid";
-        case PlanStatus::AtGoal:       return "at goal";
-        case PlanStatus::Path:         return "path";
-        case PlanStatus::Direct:       return "direct";
-        case PlanStatus::KeptPrevious: return "kept previous";
-        case PlanStatus::Unreachable:  return "unreachable";
+        case PlanStatus::Idle:         return Key("plan_idle");
+        case PlanStatus::NoGrid:       return Key("plan_no_grid");
+        case PlanStatus::AtGoal:       return Key("plan_at_goal");
+        case PlanStatus::Path:         return Key("plan_path");
+        case PlanStatus::Direct:       return Key("plan_direct");
+        case PlanStatus::KeptPrevious: return Key("plan_kept_previous");
+        case PlanStatus::Unreachable:  return Key("plan_unreachable");
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 bool InUnreachableBackoff(const PlannerState& st, const Vec2& goal, uint64_t now, const PlannerParams& p) {

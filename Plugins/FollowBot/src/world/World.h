@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../common/Geometry.h"
+#include "../core/LocText.h"
 
 #include <array>
 #include <cstdint>
@@ -40,21 +41,22 @@ enum class InteractKind : uint8_t {
     Count
 };
 
+// The kind's key (lang/en.json); the UI and the logs translate it.
 inline const char* InteractKindName(InteractKind k) {
     switch (k) {
-        case InteractKind::AreaTransition: return "Transition";
-        case InteractKind::BossArena:      return "Boss arena";
-        case InteractKind::Portal:         return "Portal";
-        case InteractKind::Checkpoint:     return "Checkpoint";
-        case InteractKind::Waypoint:       return "Waypoint";
-        case InteractKind::Stash:          return "Stash";
-        case InteractKind::GuildStash:     return "Guild stash";
-        case InteractKind::MapDevice:      return "Map device";
-        case InteractKind::Door:           return "Door";
-        case InteractKind::Other:          return "Other";
+        case InteractKind::AreaTransition: return Key("interact_transition");
+        case InteractKind::BossArena:      return Key("interact_boss_arena");
+        case InteractKind::Portal:         return Key("interact_portal");
+        case InteractKind::Checkpoint:     return Key("interact_checkpoint");
+        case InteractKind::Waypoint:       return Key("interact_waypoint");
+        case InteractKind::Stash:          return Key("interact_stash");
+        case InteractKind::GuildStash:     return Key("interact_guild_stash");
+        case InteractKind::MapDevice:      return Key("interact_map_device");
+        case InteractKind::Door:           return Key("interact_door");
+        case InteractKind::Other:          return Key("interact_other");
         case InteractKind::Count:          break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 // How the leader left our sight (LeaderTracker, design §5.1). BossArena is kept
@@ -72,20 +74,21 @@ enum class VanishKind : uint8_t {
     Count
 };
 
+// The kind's key (lang/en.json).
 inline const char* VanishKindName(VanishKind k) {
     switch (k) {
-        case VanishKind::None:       return "None";
-        case VanishKind::Transition: return "Area transition";
-        case VanishKind::BossArena:  return "Boss arena";
-        case VanishKind::Portal:     return "Portal";
-        case VanishKind::Checkpoint: return "Checkpoint";
-        case VanishKind::Waypoint:   return "Waypoint";
-        case VanishKind::OutOfRange: return "Out of range";
-        case VanishKind::Died:       return "Died";
-        case VanishKind::Unknown:    return "Unknown";
+        case VanishKind::None:       return Key("vanish_none");
+        case VanishKind::Transition: return Key("vanish_transition");
+        case VanishKind::BossArena:  return Key("vanish_boss_arena");
+        case VanishKind::Portal:     return Key("vanish_portal");
+        case VanishKind::Checkpoint: return Key("vanish_checkpoint");
+        case VanishKind::Waypoint:   return Key("vanish_waypoint");
+        case VanishKind::OutOfRange: return Key("vanish_out_of_range");
+        case VanishKind::Died:       return Key("vanish_died");
+        case VanishKind::Unknown:    return Key("vanish_unknown");
         case VanishKind::Count:      break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 // True for the kinds the bot can follow through by clicking an object.
@@ -118,27 +121,28 @@ enum class ItemCategory : uint8_t {
 
 inline constexpr int kItemCategoryCount = static_cast<int>(ItemCategory::Count);
 
+// The category's key (lang/en.json).
 inline const char* ItemCategoryName(ItemCategory c) {
     switch (c) {
-        case ItemCategory::Currency:    return "Currency";
-        case ItemCategory::Quest:       return "Quest items";
-        case ItemCategory::Gems:        return "Gems";
-        case ItemCategory::Waystones:   return "Waystones";
-        case ItemCategory::Tablets:     return "Tablets";
-        case ItemCategory::Runes:       return "Runes, soul cores, idols";
-        case ItemCategory::Omens:       return "Omens, essences, catalysts";
-        case ItemCategory::Fragments:   return "Fragments";
-        case ItemCategory::Jewels:      return "Jewels";
-        case ItemCategory::Flasks:      return "Flasks and charms";
-        case ItemCategory::Uniques:     return "Unique items";
-        case ItemCategory::Weapons:     return "Weapons";
-        case ItemCategory::Armour:      return "Armour";
-        case ItemCategory::Accessories: return "Accessories";
-        case ItemCategory::Other:       return "Other";
-        case ItemCategory::Gold:        return "Gold";
+        case ItemCategory::Currency:    return Key("category_currency");
+        case ItemCategory::Quest:       return Key("category_quest");
+        case ItemCategory::Gems:        return Key("category_gems");
+        case ItemCategory::Waystones:   return Key("category_waystones");
+        case ItemCategory::Tablets:     return Key("category_tablets");
+        case ItemCategory::Runes:       return Key("category_runes");
+        case ItemCategory::Omens:       return Key("category_omens");
+        case ItemCategory::Fragments:   return Key("category_fragments");
+        case ItemCategory::Jewels:      return Key("category_jewels");
+        case ItemCategory::Flasks:      return Key("category_flasks");
+        case ItemCategory::Uniques:     return Key("category_uniques");
+        case ItemCategory::Weapons:     return Key("category_weapons");
+        case ItemCategory::Armour:      return Key("category_armour");
+        case ItemCategory::Accessories: return Key("category_accessories");
+        case ItemCategory::Other:       return Key("category_other");
+        case ItemCategory::Gold:        return Key("category_gold");
         case ItemCategory::Count:       break;
     }
-    return "?";
+    return Key("common_unknown");
 }
 
 // ---------------------------------------------------------------------------

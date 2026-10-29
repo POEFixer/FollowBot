@@ -46,10 +46,10 @@ public:
     void Abort(BotContext& ctx);
 
     bool CursorCritical() const { return m_click.CursorCritical(); }
-    const std::string& FailReason() const { return m_fail; }
+    const LocText& FailReason() const { return m_fail; }
 
     // --- additions: status for the UI / report, and the pure selectors ---
-    // One line: what the trip does right now ("" when idle).
+    // What the trip does right now: a key ("" when idle).
     const char* PhaseText() const;
     bool Returning() const { return m_returning; }
     uint32_t PortalId() const { return m_portalId; }
@@ -67,12 +67,12 @@ public:
 private:
     enum class Phase : uint8_t { Idle = 0, Press, WaitPortal, FindReturn, Click, WaitArea, Done, Failed };
 
-    TripStatus Fail(BotContext& ctx, const std::string& why, TripStatus st);
+    TripStatus Fail(BotContext& ctx, const LocText& why, TripStatus st);
     TripStatus TickClickAndArea(BotContext& ctx);
     void StartClick(BotContext& ctx, const Interactable& portal);
 
     WorldClick  m_click;
-    std::string m_fail;
+    LocText     m_fail;
     uint64_t    m_phaseMs = 0;
     uint32_t    m_startArea = 0;
     // Additions.

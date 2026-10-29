@@ -95,35 +95,38 @@ std::string ControlNamePath(const PluginSDK::Context& sdk, uintptr_t addr, uintp
 }
 
 // "Find UI by control name": up to 12 matches below the game UI root with their
-// control-name path, visibility, rectangle and localized text, one line each.
-std::vector<std::string> FindUiElements(const PluginSDK::Context* sdk, const std::string& query, int match,
-                                        bool visibleOnly) {
-    std::vector<std::string> lines;
+// control-name path, visibility, rectangle and localized text, one line each
+// (texts the Debug tab and the decision log translate).
+std::vector<LocText> FindUiElements(const PluginSDK::Context* sdk, const std::string& query, int match, bool visibleOnly) {
+    std::vector<LocText> lines;
     if (!sdk) {
-        lines.push_back("Find UI: no host");
+        lines.push_back(Tr("findui_no_host"));
         return lines;
     }
     if (!sdk->Ui.HasFindElements()) {
-        lines.push_back("Find UI: this POEFixer cannot search the UI by name (needs 365 or newer)");
+        lines.push_back(Tr("findui_needs_365"));
         return lines;
     }
     const std::string text = Trim(query);
     if (text.empty()) {
-        lines.push_back("Find UI: type a control name first (e.g. death_screen)");
+        lines.push_back(Tr("findui_type_first"));
         return lines;
     }
     if (match < 0 || match > 2) match = 0;
     const PluginSDK::UiMatchKind kind = match == 1   ? PluginSDK::UiMatchKind::ControlNamePrefix
                                         : match == 2 ? PluginSDK::UiMatchKind::StringId
                                                      : PluginSDK::UiMatchKind::ControlName;
-    static const char* const kKindText[] = {"control name", "control name starting with", "localized text"};
+    constexpr const char* kKindKeys[] = {Key("findui_kind_name"), Key("findui_kind_prefix"), Key("findui_kind_text")};
     constexpr int kMaxShown = 12;
     const std::vector<uintptr_t> found = sdk->Ui.FindElements(0, text, kind, 32, visibleOnly, kMaxShown);
-    char line[768];
-    std::snprintf(line, sizeof(line), "Find UI (%s \"%s\", %s): %d found%s", kKindText[match], text.c_str(),
-                  visibleOnly ? "visible only" : "visible or hidden", static_cast<int>(found.size()),
-                  static_cast<int>(found.size()) >= kMaxShown ? " (the first 12, shallowest first)" : "");
-    lines.push_back(line);
+    const LocText kindText = Tr(kKindKeys[match]);
+    const LocText visibility = visibleOnly ? Tr("findui_visible_only") : Tr("findui_visible_or_hidden");
+    const std::string count = Num("%d", static_cast<int>(found.size()));
+    lines.push_back(static_cast<int>(found.size()) >= kMaxShown
+                        ? TrF("findui_header_capped", {{"kind", kindText}, {"query", text}, {"visibility", visibility},
+                                                       {"count", count}, {"max", Num("%d", kMaxShown)}})
+                        : TrF("findui_header", {{"kind", kindText}, {"query", text}, {"visibility", visibility},
+                                                {"count", count}}));
     if (found.empty()) return lines;
     const uintptr_t root = sdk->Ui.GetGameUiRoot();
     const auto rects = sdk->Ui.ComputeScreenRects(found);
@@ -142,16 +145,20 @@ std::vector<std::string> FindUiElements(const PluginSDK::Context* sdk, const std
         int depth = 0;
         const std::string path = sdk->Ui.HasControlNames() ? ControlNamePath(*sdk, a, root, &depth) : std::string("-");
         std::string label = sdk->Ui.GetText(a);
-        if (label.size() > 80) label.resize(80);
+        CutToChars(label, 80);   // the game's text, in its language: cut by characters
         for (char& ch : label)
             if (ch == '\r' || ch == '\n') ch = ' ';
-        char rect[96];
-        if (ok) std::snprintf(rect, sizeof(rect), "%.0f,%.0f %.0fx%.0f", x, y, w, h);
-        else std::snprintf(rect, sizeof(rect), "no rectangle");
-        std::snprintf(line, sizeof(line), "  %d. 0x%llX  %s  depth %d  %s  [%s]%s%s%s", static_cast<int>(i + 1),
-                      static_cast<unsigned long long>(a), sdk->Ui.IsVisible(a) ? "visible" : "hidden", depth, rect,
-                      path.c_str(), label.empty() ? "" : "  \"", label.c_str(), label.empty() ? "" : "\"");
-        lines.push_back(line);
+        const LocText rect = ok ? TrF("text_verbatim", {{"text", Num("%.0f,%.0f %.0fx%.0f", x, y, w, h)}})
+                                : Tr("probe_no_rect");
+        const LocText state = sdk->Ui.IsVisible(a) ? Tr("findui_state_visible") : Tr("findui_state_hidden");
+        const std::string number = Num("%d", static_cast<int>(i + 1));
+        const std::string address = Num("0x%llX", static_cast<unsigned long long>(a));
+        const std::string levels = Num("%d", depth);
+        lines.push_back(label.empty()
+                            ? TrF("findui_line", {{"number", number}, {"address", address}, {"state", state},
+                                                  {"depth", levels}, {"rect", rect}, {"path", path}})
+                            : TrF("findui_line_text", {{"number", number}, {"address", address}, {"state", state},
+                                                       {"depth", levels}, {"rect", rect}, {"path", path}, {"text", label}}));
     }
     return lines;
 }
@@ -160,8 +167,8 @@ std::vector<std::string> FindUiElements(const PluginSDK::Context* sdk, const std
 
 namespace fb::ui {
 
-std::string DumpEntities(const PluginSDK::Context* sdk, const std::filesystem::path& dir, const Vec2& self, float radius) {
-    if (!sdk) return "No host";
+LocText DumpEntities(const PluginSDK::Context* sdk, const std::filesystem::path& dir, const Vec2& self, float radius) {
+    if (!sdk) return Tr("dump_no_host");
     const PluginSDK::Snapshot snap = sdk->Game.GetSnapshot();
     std::string out;
     out.reserve(64 * 1024);
@@ -214,14 +221,14 @@ std::string DumpEntities(const PluginSDK::Context* sdk, const std::filesystem::p
         if (!e.PlayerName.empty()) out += "    player: " + WideToUtf8(e.PlayerName) + "\r\n";
     }
     const std::filesystem::path file = dir / ("entities-" + Stamp() + ".txt");
-    if (!io::WriteTextFileAtomic(file, out)) return "Could not write the entity dump";
-    return "Entity dump: " + std::to_string(count) + " entities -> " + WideToUtf8(file.wstring());
+    if (!io::WriteTextFileAtomic(file, out)) return Tr("dump_entities_failed");
+    return TrF("dump_entities_done", {{"count", std::to_string(count)}, {"file", WideToUtf8(file.wstring())}});
 }
 
-std::string DumpUiTree(const PluginSDK::Context* sdk, const std::filesystem::path& dir) {
-    if (!sdk) return "No host";
+LocText DumpUiTree(const PluginSDK::Context* sdk, const std::filesystem::path& dir) {
+    if (!sdk) return Tr("dump_no_host");
     const uintptr_t root = sdk->Ui.GetGameUiRoot();
-    if (!root) return "No game UI root (not in game?)";
+    if (!root) return Tr("dump_ui_no_root");
     struct Node {
         uintptr_t addr;
         int depth;
@@ -255,7 +262,7 @@ std::string DumpUiTree(const PluginSDK::Context* sdk, const std::filesystem::pat
         const auto& n = order[i];
         const PluginSDK::UiElement el = sdk->Ui.Read(n.addr);
         std::string text = sdk->Ui.GetText(n.addr);
-        if (text.size() > 200) text.resize(200);
+        CutToChars(text, 200);
         for (char& ch : text)
             if (ch == '\r' || ch == '\n') ch = ' ';
         name.clear();
@@ -273,24 +280,24 @@ std::string DumpUiTree(const PluginSDK::Context* sdk, const std::filesystem::pat
     }
     if (order.size() >= kBudget) out += "\r\n(stopped at the node budget)\r\n";
     const std::filesystem::path file = dir / ("ui-" + Stamp() + ".txt");
-    if (!io::WriteTextFileAtomic(file, out)) return "Could not write the UI dump";
-    return "UI dump: " + std::to_string(order.size()) + " elements -> " + WideToUtf8(file.wstring());
+    if (!io::WriteTextFileAtomic(file, out)) return Tr("dump_ui_failed");
+    return TrF("dump_ui_done", {{"count", std::to_string(order.size())}, {"file", WideToUtf8(file.wstring())}});
 }
 
 }  // namespace fb::ui
 
 void FollowBotPlugin::RunJob(Job j, BotContext& ctx) {
-    std::string result;
+    std::vector<LocText> result;   // one entry per line: the Debug tab and the decision log
     const std::filesystem::path dumps = DirectoryPath() / "dumps";
     switch (j) {
         case Job::DumpEntities:
-            result = ui::DumpEntities(ctx.sdk, dumps, ctx.w.self.grid, 60.f);
+            result.push_back(ui::DumpEntities(ctx.sdk, dumps, ctx.w.self.grid, 60.f));
             break;
         case Job::DumpUi:
-            result = ui::DumpUiTree(ctx.sdk, dumps);
+            result.push_back(ui::DumpUiTree(ctx.sdk, dumps));
             break;
         case Job::ProbeDeath:
-            result = "Death screen: " + DeathTask::ProbeDeathScreen(ctx);
+            result = DeathTask::ProbeDeathScreen(ctx);
             break;
         case Job::FindUi: {
             std::string query;
@@ -302,18 +309,13 @@ void FollowBotPlugin::RunJob(Job j, BotContext& ctx) {
                 match = m_findUiQueryMatch;
                 visibleOnly = m_findUiQueryVisibleOnly;
             }
-            // One log line per element; the Debug tab shows them all.
-            for (const auto& l : FindUiElements(ctx.sdk, query, match, visibleOnly)) {
-                m_log.AddText(LogCat::General, l);
-                if (!result.empty()) result += '\n';
-                result += l;
-            }
-            m_brain.SetDebugResult(result);
-            return;
+            result = FindUiElements(ctx.sdk, query, match, visibleOnly);
+            break;
         }
         case Job::None:
             return;
     }
-    m_log.AddText(LogCat::General, result);
-    m_brain.SetDebugResult(result);
+    // One log line per entry; the Debug tab shows them all.
+    for (const LocText& line : result) m_log.Add(LogCat::General, line);
+    m_brain.SetDebugResult(std::move(result));
 }
