@@ -1,6 +1,6 @@
 # Follow Bot
 
-Current version: 1.0.2
+Current version: 1.0.3
 
 Requires POE2Fixer 365 or newer.
 
